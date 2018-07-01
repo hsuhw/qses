@@ -1,4 +1,3 @@
-ARG PROJECT_NAME
 ARG PYTHON_IMG_VERSION
 FROM python:${PYTHON_IMG_VERSION}
 
@@ -67,12 +66,15 @@ RUN cd /usr/share/workspace/FAT \
  && cd /usr/share/workspace/custom-z3 \
  && python scripts/mk_make.py --prefix=/usr/share/workspace/custom-z3 \
  && cd build; sed -i -e 's/CXXFLAGS= /CXXFLAGS= -std=c++03 /' config.mk \
- && make && make install \
- \
- && cd /usr/share/workspace/FAT/build \
+ && make && make install
+
+ARG PROJECT_NAME
+
+ENV LD_LIBRARY_PATH='/usr/share/workspace/custom-z3/lib:/usr/local/lib'
+
+RUN cd /usr/share/workspace/FAT/build \
  && make clean && make \
- && export LD_LIBRARY_PATH='/usr/share/workspace/custom-z3/lib:/usr/local/lib' \
- && mv Trau "/usr/share/workspace/${PROJECT_NAME}"
+ && mv Trau /usr/share/workspace/
 
 # Set container default behavior
 WORKDIR "/usr/share/workspace/${PROJECT_NAME}"
