@@ -1,0 +1,11 @@
+version: "3"
+
+services:
+  main:
+    build:
+      context: .
+      args:
+        - PYTHON_IMG_VERSION=${PYTHON_IMG_VERSION}
+        - PROJECT_NAME=${COMPOSE_PROJECT_NAME}
+    volumes:
+      - ..:/usr/share/workspace/${COMPOSE_PROJECT_NAME}
