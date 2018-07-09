@@ -27,17 +27,19 @@ RUN wget -O openfst.tar.gz "http://www.openfst.org/twiki/pub/FST/FstDownload/ope
 # Install ANTLR v4
 ENV ANTLR_VERSION 4.7.1
 
+ENV CLASSPATH=".:/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar:${CLASSPATH}"
+
 RUN cd /usr/local/lib \
  && wget "https://www.antlr.org/download/antlr-${ANTLR_VERSION}-complete.jar" \
- && export CLASSPATH=".:/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar:${CLASSPATH}" \
- && alias antlr4="java -jar /usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar" \
+ && printf '#!/bin/bash'"\n\njava -jar /usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar \"\$@\"\n" > /usr/local/bin/antlr4 \
+ && chmod 755 /usr/local/bin/antlr4 \
  \
  && wget -O antlr4.zip "http://www.antlr.org/download/antlr4-cpp-runtime-${ANTLR_VERSION}-source.zip" \
  && unzip antlr4.zip -d /usr/src/antlr4 \
  && rm -rf antlr4.zip \
  && cd /usr/src/antlr4 \
  && cmake . && make && make install \
- && rm -rf /usr/src/antlr4
+ && cd ..; rm -rf /usr/src/antlr4
 
 # Install Z3
 ENV Z3_VERSION 4.7.1
@@ -53,15 +55,14 @@ RUN wget -O z3.tar.gz "https://github.com/Z3Prover/z3/archive/z3-${Z3_VERSION}.t
 # Install Trau
 WORKDIR /usr/share/workspace
 
-RUN git clone https://github.com/diepbp/FAT.git \
- && rm -rf FAT/build/src/*.d FAT/build/src/*.o \
- && rm -rf FAT/build/src/antlrParser/*.d FAT/build/src/antlrParser/*.o
+ENV TRAU_VERSION 1.1
 
-COPY build.makefile.fixed FAT/build/makefile
-COPY build.src.subdir.mk.fixed FAT/build/src/subdir.mk
-COPY build.src.antlrParser.subdir.mk.fixed FAT/build/src/antlrParser/subdir.mk
+RUN wget -O trau.tar.gz "https://github.com/diepbp/FAT/archive/v${TRAU_VERSION}.tar.gz" \
+ && mkdir -p /usr/share/workspace/trau \
+ && tar -xzC /usr/share/workspace/trau --strip-components=1 -f trau.tar.gz \
+ && rm -rf trau.tar.gz
 
-RUN cd /usr/share/workspace/FAT \
+RUN cd /usr/share/workspace/trau \
  && unzip z3-z3-4.4.1.0.zip && mv z3-z3-4.4.1.0 /usr/share/workspace/custom-z3 \
  && cd /usr/share/workspace/custom-z3 \
  && python scripts/mk_make.py --prefix=/usr/share/workspace/custom-z3 \
@@ -72,9 +73,11 @@ ARG PROJECT_NAME
 
 ENV LD_LIBRARY_PATH='/usr/share/workspace/custom-z3/lib:/usr/local/lib'
 
-RUN cd /usr/share/workspace/FAT/build \
+RUN cd /usr/share/workspace/trau/build \
+ && sed -i -e 's/\/home\/osboxes\/customZ3/\/usr\/share\/workspace\/custom-z3/' config.mk \
  && make clean && make \
- && mv Trau /usr/share/workspace/
+ && mv Trau /usr/local/bin/trau \
+ && chmod 755 /usr/local/bin/trau
 
 # Set container default behavior
 WORKDIR "/usr/share/workspace/${PROJECT_NAME}"
