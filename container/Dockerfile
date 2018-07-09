@@ -22,7 +22,7 @@ RUN wget -O openfst.tar.gz "http://www.openfst.org/twiki/pub/FST/FstDownload/ope
  && rm -rf openfst.tar.gz \
  && cd /usr/src/openfst \
  && ./configure && make && make install \
- && cd ..; rm -rf /usr/src/openfst
+ && cd /; rm -rf /usr/src/openfst
 
 # Install ANTLR v4
 ENV ANTLR_VERSION 4.7.1
@@ -39,7 +39,7 @@ RUN cd /usr/local/lib \
  && rm -rf antlr4.zip \
  && cd /usr/src/antlr4 \
  && cmake . && make && make install \
- && cd ..; rm -rf /usr/src/antlr4
+ && cd /; rm -rf /usr/src/antlr4
 
 # Install Z3
 ENV Z3_VERSION 4.7.1
@@ -50,7 +50,7 @@ RUN wget -O z3.tar.gz "https://github.com/Z3Prover/z3/archive/z3-${Z3_VERSION}.t
  && rm -rf z3.tar.gz \
  && cd /usr/src/z3 \
  && python scripts/mk_make.py && cd build; make && make install \
- && cd ..; rm -rf /usr/src/z3
+ && cd /; rm -rf /usr/src/z3
 
 # Install Trau
 WORKDIR /usr/share/workspace
