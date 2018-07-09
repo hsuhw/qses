@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install -y \
 ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.bash_common /root
 ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.common.vim /root
 ADD https://gist.github.com/hsuhw/3313a3f752bf718c5c78/raw/.gitconfig /root
-RUN echo "\nsource ~/.bash_common" >> ~/.bashrc \
- && echo "\nsource ~/.common.vim" >> ~/.vimrc
+RUN printf "\nsource ~/.bash_common\n" >> ~/.bashrc \
+ && printf "\nsource ~/.common.vim\n" >> ~/.vimrc
 
 # Install OpenFst
 ENV OPENFST_VERSION 1.6.8
