@@ -77,24 +77,25 @@ RUN cd /usr/share/workspace/FAT-1.1/build \
  && source scl_source enable devtoolset-7\
  && sed -i 's|/home/osboxes/customZ3/|/usr/share/workspace/custom-z3/|g' config.mk\
  && export LD_LIBRARY_PATH="/usr/share/workspace/custom-z3/lib:/usr/local/lib"\
- && make clean && make \
- && mv Trau /usr/share/workspace/
+ && make clean && make 
 
-#RUN cd /usr/share/workspace/ \
-# && mkdir benchmark \
-# && cd ./benchmark \
-# && wget -O kaluza.zip "https://drive.google.com/uc?id=15ZgdMB4r1sqHtne4CfNEQvwEc0ujB1dc&export=download" \
-# && wget -O pisa.zip "https://drive.google.com/uc?id=1LJar0OXSRBD03mRBZEfnQRs3-QsuRSJp&export=download"\
-# && wget -O appscan.zip "https://drive.google.com/uc?id=1nbjEj3BzywfbMxkyub4Sn0iYKiegmhJx&export=download"\
-# && wget -O pyex.zip "https://drive.google.com/uc?id=1V_g8SPNuT0GWoXVUqkyW3ez7BstYXYN2&export=download" \
-# && unzip kaluza.zip && rm kaluza.zip\
-# && unzip pisa.zip && rm pisa.zip \
-# && unzip appscan.zip && rm appscan.zip\
-# && unzip pyex.zip && rm pyex.zip 
+RUN cd /usr/share/workspace/ \
+ && mv /usr/share/workspace/FAT-1.1/build/Trau /usr/local/bin/trau \
+ && chmod 755 /usr/local/bin/trau \
+ && mkdir benchmark \
+ && cd ./benchmark 
 
-COPY ./scripts/problem_set /usr/share/workspace/
-RUN cd /usr/share/workspace \
- && cp $(which z3) /usr/share/workspace/ 
+COPY download.py /usr/share/workspace
+
+RUN python3 download.py "https://drive.google.com/uc?id=15ZgdMB4r1sqHtne4CfNEQvwEc0ujB1dc&export=download" kaluza.zip 35\
+ && python3 download.py "https://drive.google.com/uc?id=1LJar0OXSRBD03mRBZEfnQRs3-QsuRSJp&export=download" pisa.zip 5\
+ && python3 download.py "https://drive.google.com/uc?id=1nbjEj3BzywfbMxkyub4Sn0iYKiegmhJx&export=download" appscan.zip 4\
+ && python3 download.py "https://drive.google.com/uc?id=1V_g8SPNuT0GWoXVUqkyW3ez7BstYXYN2&export=download" pyex.zip 31 \
+ && unzip kaluza.zip && rm kaluza.zip\
+ && unzip pisa.zip && rm pisa.zip \
+ && unzip appscan.zip && rm appscan.zip\
+ && unzip pyex.zip && rm pyex.zip 
+
 COPY ./scripts/compare.py /usr/share/workspace/
   
 # Set container default behavior
