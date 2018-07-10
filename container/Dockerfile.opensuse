@@ -81,7 +81,23 @@ RUN cd /usr/share/workspace/trau1_1/build \
  && make clean && make \
  && mv Trau /usr/share/workspace/
 
+# Download the benchmark problem sets
+WORKDIR /usr/share/workspace/benchmarks
+
+COPY download.py .
+
+RUN python3 download.py "https://drive.google.com/uc?id=15ZgdMB4r1sqHtne4CfNEQvwEc0ujB1dc&export=download" kaluza.zip 35 \
+ && python3 download.py "https://drive.google.com/uc?id=1LJar0OXSRBD03mRBZEfnQRs3-QsuRSJp&export=download" pisa.zip 5 \
+ && python3 download.py "https://drive.google.com/uc?id=1nbjEj3BzywfbMxkyub4Sn0iYKiegmhJx&export=download" appscan.zip 4 \
+ && python3 download.py "https://drive.google.com/uc?id=1V_g8SPNuT0GWoXVUqkyW3ez7BstYXYN2&export=download" pyex.zip 31 \
+ && unzip kaluza.zip && mv Kaluza kaluza && rm kaluza.zip \
+ && unzip pisa.zip && rm pisa.zip \
+ && unzip appscan.zip && rm appscan.zip \
+ && unzip pyex.zip && mv PyEx pyex && rm pyex.zip
+
 # Set container default behavior
+
 WORKDIR "/usr/share/workspace/${PROJECT_NAME}"
+ARG PROJECT_NAME=qses
 
 CMD ["python"]
