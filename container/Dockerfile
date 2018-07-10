@@ -1,4 +1,4 @@
-ARG PYTHON_IMG_VERSION
+ARG PYTHON_IMG_VERSION=3.6-stretch
 FROM python:${PYTHON_IMG_VERSION}
 
 # Add system level dependencies
@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
 ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.bash_common /root
 ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.common.vim /root
 ADD https://gist.github.com/hsuhw/3313a3f752bf718c5c78/raw/.gitconfig /root
+
 RUN printf "\nsource ~/.bash_common\n" >> ~/.bashrc \
  && printf "\nsource ~/.common.vim\n" >> ~/.vimrc
 
@@ -26,7 +27,6 @@ RUN wget -O openfst.tar.gz "http://www.openfst.org/twiki/pub/FST/FstDownload/ope
 
 # Install ANTLR v4
 ENV ANTLR_VERSION 4.7.1
-
 ENV CLASSPATH=".:/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar:${CLASSPATH}"
 
 RUN cd /usr/local/lib \
@@ -69,17 +69,16 @@ RUN cd /usr/share/workspace/trau \
  && cd build; sed -i -e 's/CXXFLAGS= /CXXFLAGS= -std=c++03 /' config.mk \
  && make && make install
 
-ARG PROJECT_NAME
-
 ENV LD_LIBRARY_PATH='/usr/share/workspace/custom-z3/lib:/usr/local/lib'
 
 RUN cd /usr/share/workspace/trau/build \
- && sed -i -e 's/\/home\/osboxes\/customZ3/\/usr\/share\/workspace\/custom-z3/' config.mk \
+ && sed -i -e 's|/home/osboxes/customZ3|/usr/share/workspace/custom-z3|' config.mk \
  && make clean && make \
  && mv Trau /usr/local/bin/trau \
  && chmod 755 /usr/local/bin/trau
 
 # Set container default behavior
+ARG PROJECT_NAME=qses
 WORKDIR "/usr/share/workspace/${PROJECT_NAME}"
 
 CMD ["python"]
