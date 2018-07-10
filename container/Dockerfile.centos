@@ -1,17 +1,20 @@
-ARG PYTHON_IMG_VERSION
 FROM centos/python-36-centos7
+
 USER root
+
 # Add system level dependencies
-RUN yum update -y && yum install -y \
-    cmake libuuid-devel\
- && rm -rf /var/lib/apt/lists/*
+RUN INSTALL_PKGS="cmake libuuid-devel devtoolset-7-gcc-c++ java-1.8.0-openjdk" \
+ && yum -y --setopt=tsflags=nodocs install --enablerepo=centosplus $INSTALL_PKGS \
+ && rpm -V $INSTALL_PKGS \
+ && yum -y clean all --enablerepo='*'
 
 # Setup a common shell environment
-ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.bash_common /root
-ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.common.vim /root
-ADD https://gist.github.com/hsuhw/3313a3f752bf718c5c78/raw/.gitconfig /root
-RUN printf "\nsource ~/.bash_common" >> ~/.bashrc \
- && printf "\nsource ~/.common.vim" >> ~/.vimrc
+ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.bash_common /opt/app-root/src
+ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.common.vim /opt/app-root/src
+ADD https://gist.github.com/hsuhw/3313a3f752bf718c5c78/raw/.gitconfig /opt/app-root/src
+
+RUN printf "\nsource ~/.bash_common\n" >> ~/.bashrc \
+ && printf "\nsource ~/.common.vim\n" >> ~/.vimrc
 
 # Install OpenFst
 ENV OPENFST_VERSION 1.6.8
@@ -26,21 +29,20 @@ RUN wget -O openfst.tar.gz "http://www.openfst.org/twiki/pub/FST/FstDownload/ope
 
 # Install ANTLR v4
 ENV ANTLR_VERSION 4.7.1
+ENV CLASSPATH=".:/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar:${CLASSPATH}"
 
 RUN cd /usr/local/lib \
  && wget "https://www.antlr.org/download/antlr-${ANTLR_VERSION}-complete.jar" \
- && export CLASSPATH=".:/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar:${CLASSPATH}" \
- && alias antlr4="java -jar /usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar" \
+ && printf '#!/bin/bash'"\n\njava -jar /usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar \"\$@\"\n" > /usr/local/bin/antlr4 \
+ && chmod 755 /usr/local/bin/antlr4 \
  \
  && wget -O antlr4.zip "http://www.antlr.org/download/antlr4-cpp-runtime-${ANTLR_VERSION}-source.zip" \
- && yum install -y devtoolset-7-gcc-c++\
  && unzip antlr4.zip -d /usr/src/antlr4 \
  && rm -rf antlr4.zip \
  && cd /usr/src/antlr4 \
  && source scl_source enable devtoolset-7 \
  && cmake . && make && make install \
- && cd / \
- && rm -rf /usr/src/antlr4
+ && cd /; rm -rf /usr/src/antlr4
 
 # Install Z3
 ENV Z3_VERSION 4.7.1
@@ -56,49 +58,45 @@ RUN wget -O z3.tar.gz "https://github.com/Z3Prover/z3/archive/z3-${Z3_VERSION}.t
 # Install Trau
 WORKDIR /usr/share/workspace
 
-RUN wget "https://github.com/diepbp/FAT/archive/v1.1.tar.gz" \
- && tar -xf v1.1.tar.gz\
- && rm -rf FAT-1.1/build/src/*.d FAT-1.1/build/src/*.o \
- && rm -rf FAT-1.1/build/src/antlrParser/*.d FAT-1.1/build/src/antlrParser/*.o
+ENV TRAU_VERSION 1.1
 
+RUN wget -O trau.tar.gz "https://github.com/diepbp/FAT/archive/v${TRAU_VERSION}.tar.gz" \
+ && mkdir -p /usr/share/workspace/trau \
+ && tar -xzC /usr/share/workspace/trau --strip-components=1 -f trau.tar.gz \
+ && rm -rf trau.tar.gz
 
-RUN cd /usr/share/workspace/FAT-1.1 \
+RUN cd /usr/share/workspace/trau \
  && unzip z3-z3-4.4.1.0.zip && mv z3-z3-4.4.1.0 /usr/share/workspace/custom-z3 \
  && cd /usr/share/workspace/custom-z3 \
  && python scripts/mk_make.py --prefix=/usr/share/workspace/custom-z3 \
  && cd build; sed -i -e 's/CXXFLAGS= /CXXFLAGS= -std=c++03 /' config.mk \
  && make && make install
 
-ARG PROJECT_NAME
-
 ENV LD_LIBRARY_PATH='/usr/share/workspace/custom-z3/lib:/usr/local/lib'
 
-RUN cd /usr/share/workspace/FAT-1.1/build \
- && source scl_source enable devtoolset-7\
- && sed -i 's|/home/osboxes/customZ3/|/usr/share/workspace/custom-z3/|g' config.mk\
- && export LD_LIBRARY_PATH="/usr/share/workspace/custom-z3/lib:/usr/local/lib"\
- && make clean && make 
+RUN cd /usr/share/workspace/trau/build \
+ && source scl_source enable devtoolset-7 \
+ && sed -i 's|/home/osboxes/customZ3|/usr/share/workspace/custom-z3|' config.mk \
+ && make clean && make \
+ && mv Trau /usr/local/bin/trau \
+ && chmod 755 /usr/local/bin/trau
 
-RUN cd /usr/share/workspace/ \
- && mv /usr/share/workspace/FAT-1.1/build/Trau /usr/local/bin/trau \
- && chmod 755 /usr/local/bin/trau \
- && mkdir benchmark \
- && cd ./benchmark 
+# Download the benchmark problem sets
+WORKDIR /usr/share/workspace/benchmarks
 
-COPY download.py /usr/share/workspace
+COPY download.py .
 
-RUN python3 download.py "https://drive.google.com/uc?id=15ZgdMB4r1sqHtne4CfNEQvwEc0ujB1dc&export=download" kaluza.zip 35\
- && python3 download.py "https://drive.google.com/uc?id=1LJar0OXSRBD03mRBZEfnQRs3-QsuRSJp&export=download" pisa.zip 5\
- && python3 download.py "https://drive.google.com/uc?id=1nbjEj3BzywfbMxkyub4Sn0iYKiegmhJx&export=download" appscan.zip 4\
- && python3 download.py "https://drive.google.com/uc?id=1V_g8SPNuT0GWoXVUqkyW3ez7BstYXYN2&export=download" pyex.zip 31 \
- && unzip kaluza.zip && rm kaluza.zip\
+RUN python download.py "https://drive.google.com/uc?id=15ZgdMB4r1sqHtne4CfNEQvwEc0ujB1dc&export=download" kaluza.zip 35 \
+ && python download.py "https://drive.google.com/uc?id=1LJar0OXSRBD03mRBZEfnQRs3-QsuRSJp&export=download" pisa.zip 5 \
+ && python download.py "https://drive.google.com/uc?id=1nbjEj3BzywfbMxkyub4Sn0iYKiegmhJx&export=download" appscan.zip 4 \
+ && python download.py "https://drive.google.com/uc?id=1V_g8SPNuT0GWoXVUqkyW3ez7BstYXYN2&export=download" pyex.zip 31 \
+ && unzip kaluza.zip && mv Kaluza kaluza && rm kaluza.zip \
  && unzip pisa.zip && rm pisa.zip \
- && unzip appscan.zip && rm appscan.zip\
- && unzip pyex.zip && rm pyex.zip 
+ && unzip appscan.zip && rm appscan.zip \
+ && unzip pyex.zip && mv PyEx pyex && rm pyex.zip
 
-COPY ./scripts/compare.py /usr/share/workspace/
-  
 # Set container default behavior
+ARG PROJECT_NAME=qses
 WORKDIR "/usr/share/workspace/${PROJECT_NAME}"
 
-CMD ["bash"]
+CMD ["python"]
