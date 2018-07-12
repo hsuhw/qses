@@ -1,20 +1,19 @@
-ARG PYTHON_IMG_VERSION 
 FROM opensuse/python
 
-# Add system level dependencies 安裝各種會用到的工具
-RUN zypper update && zypper install -y \
-    tar wget vim less unzip gcc5-c++ gcc5 gcc g++ cmake libuuid-devel \
- && rm -rf /var/lib/apt/lists/*
+# Add system level dependencies
+RUN zypper update && zypper --non-interactive install --no-recommends \
+    tar wget vim less unzip gcc5-c++ gcc5 gcc-c++ gcc cmake libuuid-devel java-1_8_0-openjdk \
+ && zypper clean -a
 
-# Setup a common shell environment 
+# Setup a common shell environment
 ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.bash_common /root
 ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.common.vim /root
 ADD https://gist.github.com/hsuhw/3313a3f752bf718c5c78/raw/.gitconfig /root
-COPY compare.py /usr/share/workspace/
+
 RUN echo "\nsource ~/.bash_common" >> ~/.bashrc \
  && echo "\nsource ~/.common.vim" >> ~/.vimrc
 
-# Install OpenFst 字串mapper/comparison
+# Install OpenFst
 ENV OPENFST_VERSION 1.6.8
 
 RUN wget -O openfst.tar.gz "http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-${OPENFST_VERSION}.tar.gz" \
@@ -25,13 +24,15 @@ RUN wget -O openfst.tar.gz "http://www.openfst.org/twiki/pub/FST/FstDownload/ope
  && ./configure && make && make install \
  && cd /; rm -rf /usr/src/openfst
 
-# Install ANTLR v4
+# Install ANTLR4
 ENV ANTLR_VERSION 4.7.1
+ENV CLASSPATH=".:/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar:${CLASSPATH}"
 
 RUN cd /usr/local/lib \
  && wget "https://www.antlr.org/download/antlr-${ANTLR_VERSION}-complete.jar" \
- && export CLASSPATH=".:/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar:${CLASSPATH}" \
- && alias antlr4="java -jar /usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar" \
+ && printf '#!/bin/bash'"\n\njava -jar /usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar \"\$@\"\n" > /usr/local/bin/antlr4 \
+ && chmod 755 /usr/local/bin/antlr4 \
+ \
  && wget -O antlr4.zip "http://www.antlr.org/download/antlr4-cpp-runtime-${ANTLR_VERSION}-source.zip" \
  && unzip antlr4.zip -d /usr/src/antlr4 \
  && rm -rf antlr4.zip \
@@ -50,54 +51,45 @@ RUN wget -O z3.tar.gz "https://github.com/Z3Prover/z3/archive/z3-${Z3_VERSION}.t
  && python scripts/mk_make.py && cd build; make && make install \
  && cd /; rm -rf /usr/src/z3
 
-# Install Trau
-WORKDIR /usr/share/workspace
-
-RUN wget -O trau.tar.gz "https://github.com/diepbp/FAT/archive/v1.1.tar.gz" \
- && mkdir -p /usr/share/workspace/trau1_1 \
- && tar -xzC /usr/share/workspace/trau1_1 --strip-components=1 -f trau.tar.gz \
- && rm -rf trau.tar.gz \
- && cd /usr/share/workspace/trau1_1
-
-RUN cd /usr/share/workspace/trau1_1 \
- && unzip z3-z3-4.4.1.0.zip && mv z3-z3-4.4.1.0 /usr/share/workspace/custom-z3 \
- && cd /usr/share/workspace/custom-z3 \
- && python scripts/mk_make.py --prefix=/usr/share/workspace/custom-z3 \
- && cd build; sed -i -e 's/CXXFLAGS= /CXXFLAGS= -std=c++03 /' config.mk \
- && make && make install
-
-ARG PROJECT_NAME
-
-ENV LD_LIBRARY_PATH '/usr/share/workspace/custom-z3/lib:/usr/local/lib'
-
-RUN cd /usr/share/workspace/trau1_1/build \
- && sed -i -e 's|/home/osboxes/customZ3|/usr/share/workspace/custom-z3|g' config.mk \
- && sed -i -e 's/g++/g++-5/g' config.mk \
- && sed -i -e 's/gcc/gcc-5/g' config.mk \
- && sed -i -e 's/g++/g++-5/g' makefile \
- && sed -i -e 's/gcc/gcc-5/g' makefile \
- && sed -i -e 's/g++/g++-5/g' /src/antlerParser/subdir.mk \
- && sed -i -e 's/gcc/gcc-5/g' /src/antlerParser/subdir.mk \
- && make clean && make \
- && mv Trau /usr/share/workspace/
-
-# Download the benchmark problem sets
-WORKDIR /usr/share/workspace/benchmarks
-
-COPY download.py .
-
-RUN python3 download.py "https://drive.google.com/uc?id=15ZgdMB4r1sqHtne4CfNEQvwEc0ujB1dc&export=download" kaluza.zip 35 \
- && python3 download.py "https://drive.google.com/uc?id=1LJar0OXSRBD03mRBZEfnQRs3-QsuRSJp&export=download" pisa.zip 5 \
- && python3 download.py "https://drive.google.com/uc?id=1nbjEj3BzywfbMxkyub4Sn0iYKiegmhJx&export=download" appscan.zip 4 \
- && python3 download.py "https://drive.google.com/uc?id=1V_g8SPNuT0GWoXVUqkyW3ez7BstYXYN2&export=download" pyex.zip 31 \
- && unzip kaluza.zip && mv Kaluza kaluza && rm kaluza.zip \
- && unzip pisa.zip && rm pisa.zip \
- && unzip appscan.zip && rm appscan.zip \
- && unzip pyex.zip && mv PyEx pyex && rm pyex.zip
+## Install Trau
+#WORKDIR /usr/share/workspace
+#
+#ENV TRAU_VERSION 1.1
+#
+#RUN wget -O trau.tar.gz "https://github.com/diepbp/FAT/archive/v${TRAU_VERSION}.tar.gz" \
+# && mkdir -p /usr/share/workspace/trau \
+# && tar -xzC /usr/share/workspace/trau --strip-components=1 -f trau.tar.gz \
+# && rm -rf trau.tar.gz
+#
+#RUN cd /usr/share/workspace/trau \
+# && unzip z3-z3-4.4.1.0.zip && mv z3-z3-4.4.1.0 /usr/share/workspace/custom-z3 \
+# && cd /usr/share/workspace/custom-z3 \
+# && python scripts/mk_make.py --prefix=/usr/share/workspace/custom-z3 \
+# && cd build; sed -i -e 's/CXXFLAGS= /CXXFLAGS= -std=c++03 /' config.mk \
+# && make && make install
+#
+#ENV LD_LIBRARY_PATH '/usr/share/workspace/custom-z3/lib:/usr/local/lib'
+#
+#RUN cd /usr/share/workspace/trau/build \
+# && sed -i -e 's|/home/osboxes/customZ3|/usr/share/workspace/custom-z3|g' config.mk \
+# && sed -i -e 's/g++/g++-5/' makefile \
+# && sed -i -e 's/gcc/gcc-5/' makefile \
+# && sed -i -e 's/g++/g++-5/' src/subdir.mk \
+# && sed -i -e 's/gcc/gcc-5/' src/subdir.mk \
+# && sed -i -e 's/g++/g++-5/' src/antlerParser/subdir.mk \
+# && sed -i -e 's/gcc/gcc-5/' src/antlerParser/subdir.mk \
+# && mv Trau /usr/local/bin/trau \
+# && chmod 755 /usr/local/bin/trau
 
 # Set container default behavior
+WORKDIR "/usr/share/workspace/benchmarks"
+ENV BENCHMARKS_PATH "/usr/share/workspace/benchmarks"
+COPY build/entrypoint.sh /
+COPY build/download.py /
+RUN chmod 755 /entrypoint.sh
 
-WORKDIR "/usr/share/workspace/${PROJECT_NAME}"
-ARG PROJECT_NAME=qses
+ARG COMPOSE_PROJECT_NAME=qses
+WORKDIR "/usr/share/workspace/${COMPOSE_PROJECT_NAME}"
 
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python"]

@@ -2,4 +2,4 @@
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit
 
-sudo docker-compose run --rm main bash
+sudo docker-compose run --rm opensuse bash

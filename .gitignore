@@ -182,4 +182,5 @@ celerybeat-schedule
 ### Project Specific Rules
 *.*Log
 *.tokens
-/Trau
+!/container/build
+/benchmarks

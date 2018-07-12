@@ -1,11 +1,59 @@
 version: "3"
 
 services:
-  main:
+  basic:
     build:
       context: .
+      dockerfile: Dockerfile.basic
       args:
-        - PYTHON_IMG_VERSION=${PYTHON_IMG_VERSION}
-        - PROJECT_NAME=${COMPOSE_PROJECT_NAME}
+        - PYTHON_IMG_VERSION
+        - COMPOSE_PROJECT_NAME
     volumes:
+      - ../benchmarks:/usr/share/workspace/benchmarks
+      - ..:/usr/share/workspace/${COMPOSE_PROJECT_NAME}
+
+  develop:
+    depends_on:
+      - basic
+    build:
+      context: .
+      dockerfile: Dockerfile.develop
+      args:
+        - PYTHON_IMG_VERSION
+        - COMPOSE_PROJECT_NAME
+    volumes:
+      - ../benchmarks:/usr/share/workspace/benchmarks
+      - ..:/usr/share/workspace/${COMPOSE_PROJECT_NAME}
+
+  ubuntu:
+    build:
+      context: .
+      dockerfile: Dockerfile.ubuntu
+      args:
+        - PYTHON_IMG_VERSION
+        - COMPOSE_PROJECT_NAME
+    volumes:
+      - ../benchmarks:/usr/share/workspace/benchmarks
+      - ..:/usr/share/workspace/${COMPOSE_PROJECT_NAME}
+
+  centos:
+    build:
+      context: .
+      dockerfile: Dockerfile.centos
+      args:
+        - PYTHON_IMG_VERSION
+        - COMPOSE_PROJECT_NAME
+    volumes:
+      - ../benchmarks:/usr/share/workspace/benchmarks
+      - ..:/usr/share/workspace/${COMPOSE_PROJECT_NAME}
+
+  opensuse:
+    build:
+      context: .
+      dockerfile: Dockerfile.opensuse
+      args:
+        - PYTHON_IMG_VERSION
+        - COMPOSE_PROJECT_NAME
+    volumes:
+      - ../benchmarks:/usr/share/workspace/benchmarks
       - ..:/usr/share/workspace/${COMPOSE_PROJECT_NAME}
