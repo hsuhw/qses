@@ -1,8 +1,8 @@
-FROM opensuse/python
+FROM opensuse
 
 # Add system level dependencies
-RUN zypper update && zypper --non-interactive install --no-recommends \
-    tar wget vim less unzip gcc5-c++ gcc5 gcc-c++ gcc cmake libuuid-devel java-1_8_0-openjdk \
+RUN zypper --non-interactive update && zypper --non-interactive install --no-recommends \
+    tar wget vim less unzip gcc5-c++ gcc5 gcc-c++ gcc cmake libuuid-devel java-1_8_0-openjdk zlib-devel \
  && zypper clean -a
 
 # Setup a common shell environment
@@ -12,6 +12,15 @@ ADD https://gist.github.com/hsuhw/3313a3f752bf718c5c78/raw/.gitconfig /root
 
 RUN echo "\nsource ~/.bash_common" >> ~/.bashrc \
  && echo "\nsource ~/.common.vim" >> ~/.vimrc
+
+# Install python3.6.6
+ENV PYTHON_VERSION 3.6.6
+
+RUN wget -O python3.zip "https://github.com/python/cpython/archive/v${PYTHON_VERSION}.zip" \
+ && unzip python3.zip && rm python3.zip \
+ && cd cpython-3.6.6 \
+ && ./configure \
+ && make && make install
 
 # Install OpenFst
 ENV OPENFST_VERSION 1.6.8
@@ -48,7 +57,7 @@ RUN wget -O z3.tar.gz "https://github.com/Z3Prover/z3/archive/z3-${Z3_VERSION}.t
  && tar -xzC /usr/src/z3 --strip-components=1 -f z3.tar.gz \
  && rm -rf z3.tar.gz \
  && cd /usr/src/z3 \
- && python scripts/mk_make.py && cd build; make && make install \
+ && python3.6 scripts/mk_make.py && cd build; make && make install \
  && cd /; rm -rf /usr/src/z3
 
 ## Install Trau
