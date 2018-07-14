@@ -178,6 +178,9 @@ celerybeat-schedule
 # mypy
 .mypy_cache/
 
+# Pipenv
+.venv/
+
 
 ### Project Specific Rules
 *.*Log

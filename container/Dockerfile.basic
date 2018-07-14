@@ -4,7 +4,10 @@ FROM python:${PYTHON_IMG_VERSION}
 # Add system level dependencies
 RUN apt-get update && apt-get install -y \
     vim less unzip default-jre \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && pip install pipenv
+
+ENV PIPENV_VENV_IN_PROJECT 1
 
 # Setup a common shell environment
 ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.bash_common /root
