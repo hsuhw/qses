@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "82fe6a442b5b6fd965224ff4228166d5181bf87f1a4e845920b1f2bcda24a972"
+            "sha256": "4bf002eb5c50b8739a4f05f1e145be8a9eca5384a77fa0c5b0e014be0aae6361"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -22,6 +22,35 @@
             ],
             "index": "pypi",
             "version": "==4.7.1"
+        },
+        "pybuilder": {
+            "hashes": [
+                "sha256:3d5c33ebd1028f078cb6bff56ead5eecdb3b3cf32dc3ce6fad99b0bbaa44e65d",
+                "sha256:ea740e0c4794935a401b4f19d67b34c660d6f0147bb135c6918a5c8c563dade9"
+            ],
+            "index": "pypi",
+            "version": "==0.11.17"
+        },
+        "tailer": {
+            "hashes": [
+                "sha256:78d60f23a1b8a2d32f400b3c8c06b01142ac7841b75d8a1efcb33515877ba531"
+            ],
+            "version": "==0.4.1"
+        },
+        "tblib": {
+            "hashes": [
+                "sha256:436e4200e63d92316551179dc540906652878df4ff39b43db30fcf6400444fe7",
+                "sha256:9bae4b8c44b06af0e114bfc4d5f6aa3eafd2119af5a4dcab34f51f1665f16c59"
+            ],
+            "version": "==1.3.2"
+        },
+        "wheel": {
+            "hashes": [
+                "sha256:0a2e54558a0628f2145d2fc822137e322412115173e8a2ddbe1c9024338ae83c",
+                "sha256:80044e51ec5bbf6c894ba0bc48d26a8c20a9ba629f4ca19ea26ecfcf87685f5f"
+            ],
+            "markers": "python_version != '3.1.*' and python_version != '3.2.*' and python_version != '3.3.*' and python_version >= '2.7' and python_version != '3.0.*'",
+            "version": "==0.31.1"
         }
     },
     "develop": {}
