@@ -53,7 +53,7 @@ RUN wget -O z3.tar.gz "https://github.com/Z3Prover/z3/archive/z3-${Z3_VERSION}.t
 # && cd build; sed -i -e 's/CXXFLAGS= /CXXFLAGS= -std=c++03 /' config.mk \
 # && make && make install
 #
-#ENV LD_LIBRARY_PATH='/usr/share/workspace/custom-z3/lib:/usr/local/lib'
+#ENV LD_LIBRARY_PATH '/usr/share/workspace/custom-z3/lib:/usr/local/lib'
 #
 #RUN cd /usr/share/workspace/trau/build \
 # && sed -i -e 's|/home/osboxes/customZ3|/usr/share/workspace/custom-z3|' config.mk \

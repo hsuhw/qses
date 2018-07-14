@@ -19,7 +19,7 @@ RUN printf "\nsource ~/.bash_common\n" >> ~/.bashrc \
 
 # Install ANTLR4 CLI tool
 ENV ANTLR_VERSION 4.7.1
-ENV CLASSPATH=".:/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar:${CLASSPATH}"
+ENV CLASSPATH ".:/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar:${CLASSPATH}"
 
 RUN cd /usr/local/lib \
  && wget "https://www.antlr.org/download/antlr-${ANTLR_VERSION}-complete.jar" \

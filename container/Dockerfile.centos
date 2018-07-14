@@ -29,7 +29,7 @@ RUN wget -O openfst.tar.gz "http://www.openfst.org/twiki/pub/FST/FstDownload/ope
 
 # Install ANTLR4
 ENV ANTLR_VERSION 4.7.1
-ENV CLASSPATH=".:/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar:${CLASSPATH}"
+ENV CLASSPATH ".:/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar:${CLASSPATH}"
 
 RUN cd /usr/local/lib \
  && wget "https://www.antlr.org/download/antlr-${ANTLR_VERSION}-complete.jar" \
@@ -72,7 +72,7 @@ RUN wget -O z3.tar.gz "https://github.com/Z3Prover/z3/archive/z3-${Z3_VERSION}.t
 # && cd build; sed -i -e 's/CXXFLAGS= /CXXFLAGS= -std=c++03 /' config.mk \
 # && make && make install
 #
-#ENV LD_LIBRARY_PATH='/usr/share/workspace/custom-z3/lib:/usr/local/lib'
+#ENV LD_LIBRARY_PATH '/usr/share/workspace/custom-z3/lib:/usr/local/lib'
 #
 #RUN cd /usr/share/workspace/trau/build \
 # && source scl_source enable devtoolset-7 \
