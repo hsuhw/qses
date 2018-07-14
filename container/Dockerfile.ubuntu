@@ -1,103 +1,85 @@
 FROM arwineap/docker-ubuntu-python3.6
 
-
 # Add system level dependencies
 RUN apt-get update && apt-get install -y \
-    vim less unzip g++ cmake uuid-dev default-jre \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt update && apt upgrade && apt install -y wget\
+    vim less wget unzip g++ cmake pkg-config uuid-dev default-jre \
+ && rm -rf /var/lib/apt/lists/* \
+ && ln -s /usr/bin/python3.6 /usr/local/bin/python \
+ && ln -s /usr/bin/python3.6 /usr/local/bin/python3 \
+ && ln -s /usr/bin/python3.6 /usr/local/bin/python3.6
 
 # Setup a common shell environment
 ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.bash_common /root
-ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.common.vim/root
-ADD https://gist.githubusercontent.com/hsuhw/3313a3f752bf718c5c78/raw/.gitconfig/root
+ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.common.vim /root
+ADD https://gist.githubusercontent.com/hsuhw/3313a3f752bf718c5c78/raw/.gitconfig /root
 
 RUN printf "\nsource ~/.bash_common\n" >> ~/.bashrc \
-    && printf "\nsource ~/.common.vim\n" >> ~/.vimrc
+ && printf "\nsource ~/.common.vim\n" >> ~/.vimrc
 
 # Install OpenFst
 ENV OPENFST_VERSION 1.6.8
 
-RUN wget -O openfst.tar.gz "http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-${OPENFST_VERSION}.tar.gz"\
-    && mkdir -p /usr/src/openfst \
-    && tar -xzC /usr/src/openfst --strip-components=1 -f openfst.tar.gz \
-    && rm -rf openfst.tar.gz \
-    && cd /usr/src/openfst \
-    && ./configure && make && make install \
-    && cd ..; rm -rf /usr/src/openfst \
+RUN wget -O openfst.tar.gz "http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-${OPENFST_VERSION}.tar.gz" \
+ && mkdir -p /usr/src/openfst \
+ && tar -xzC /usr/src/openfst --strip-components=1 -f openfst.tar.gz \
+ && rm -rf openfst.tar.gz \
+ && cd /usr/src/openfst \
+ && ./configure && make && make install \
+ && cd /; rm -rf /usr/src/openfst
 
-
- # Install ANTLR v4
+# Install ANTLR4
 ENV ANTLR_VERSION 4.7.1
+ENV CLASSPATH ".:/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar:${CLASSPATH}"
 
 RUN cd /usr/local/lib \
-    && wget "https://www.antlr.org/download/antlr-${ANTLR_VERSION}-complete.jar" \
-    && export CLASSPATH=".:/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar:${CLASSPATH}"\
-    && alias antlr4="java -jar/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar" \\
-    && wget -O antlr4.zip"http://www.antlr.org/download/antlr4-cpp-runtime-${ANTLR_VERSION}-source.zip"\
-    && unzip antlr4.zip -d /usr/src/antlr4 \
-    && rm -rf antlr4.zipc \
-    && cd /usr/src/antlr4 \
-    && apt-get install -y  pkg-config \
-    && cmake .&& make && make install \
-    && rm -rf /usr/src/antlr4 \
-    && cd .. && cd / \
-
-
-
+ && wget "https://www.antlr.org/download/antlr-${ANTLR_VERSION}-complete.jar" \
+ && printf '#!/bin/bash'"\n\njava -jar /usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar \"\$@\"\n" > /usr/local/bin/antlr4 \
+ && chmod 755 /usr/local/bin/antlr4 \
+ \
+ && wget -O antlr4.zip "http://www.antlr.org/download/antlr4-cpp-runtime-${ANTLR_VERSION}-source.zip" \
+ && unzip antlr4.zip -d /usr/src/antlr4 \
+ && rm -rf antlr4.zip \
+ && cd /usr/src/antlr4 \
+ && cmake . && make && make install \
+ && cd /; rm -rf /usr/src/antlr4
 
 # Install Z3
 ENV Z3_VERSION 4.7.1
+ENV LANG C.UTF-8
+ENV LC_ALL C.UTF-8
 
 RUN wget -O z3.tar.gz "https://github.com/Z3Prover/z3/archive/z3-${Z3_VERSION}.tar.gz" \
-    && mkdir -p /usr/src/z3 \
-    && tar -xzC /usr/src/z3 --strip-components=1 -f z3.tar.gz \
-    && rm -rf z3.tar.gz \
-    && cd /usr/src/z3 \
-    && apt-get install -y python3-distutils \
-    && python3 scripts/mk_make.py \
-    && cd build; make && make install \
-    && cd ..; rm -rf /usr/src/z3
-    && cd / \
-    
-# Install Trau
+ && mkdir -p /usr/src/z3 \
+ && tar -xzC /usr/src/z3 --strip-components=1 -f z3.tar.gz \
+ && rm -rf z3.tar.gz \
+ && cd /usr/src/z3 \
+ && python scripts/mk_make.py && cd build; make && make install \
+ && cd /; rm -rf /usr/src/z3
+
+## Install Trau
 #WORKDIR /usr/share/workspace
-
-#ENV LANG C.UTF-8
-#ENV LC_ALL C.UTF-8
-
-
-#RUN wget -O trau.tar.gz "https://github.com/diepbp/FAT/archive/v1.1.tar.gz"\
-# && mkdir -p /usr/src/trau \
-# && tar -xzC /usr/src/trau  --strip-components=1 -f trau.tar.gz\
-# && rm -rf trau.tar.gz\
-# && cd /usr/src/trau \
-# && rm -rf FAT-1.1/build/src/*.d FAT/build/src/*.o \
-# && rm -rf FAT/build/src/antlrParser/*.d FAT/build/src/antlrParser/*.o
-
-
-#RUN cd /usr/share/workspace/FAT \
-
-#RUN && mkdir -p /usr/share/workspace/custom-z3
-# && unzip z3-z3-4.4.1.0.zip \
-# && mv z3-z3-4.4.1.0
-# /usr/share/workspace/custom-z3 \
-# && cd
-# /usr/share/workspace/custom-z3/z3-z3-4.4.1.0\
-
-# && python3 scripts/mk_make.py--prefix=/usr/share/workspace/custom-z3/z3-z3-4.4.1.0 \
-# && cd build;sed -i -e 's/CXXFLAGS= /CXXFLAGS= -std=c++03 /' config.mk \
-# && make && make install \
-
-#ENV LD_LIBRARY_PATH='/usr/share/workspace/custom-z3/lib:/usr/local/lib'
-
-#RUN cd /usr/share/workspace/FAT/build \
-# && sed -i -e 's|/home/osboxes/customZ3/lib|/usr/share/workspace/custom-z3/z3-z3-4.4.1.0/lib|g' config.mk\
-# && sed -i -e 's|/home/osboxes/customZ3/include|/usr/share/workspace/custom-z3/z3-z3-4.4.1.0/include|g' config.mk\
+#
+#ENV TRAU_VERSION 1.1
+#
+#RUN wget -O trau.tar.gz "https://github.com/diepbp/FAT/archive/v${TRAU_VERSION}.tar.gz" \
+# && mkdir -p /usr/share/workspace/trau \
+# && tar -xzC /usr/share/workspace/trau --strip-components=1 -f trau.tar.gz \
+# && rm -rf trau.tar.gz
+#
+#RUN cd /usr/share/workspace/trau \
+# && unzip z3-z3-4.4.1.0.zip && mv z3-z3-4.4.1.0 /usr/share/workspace/custom-z3 \
+# && cd /usr/share/workspace/custom-z3 \
+# && python scripts/mk_make.py --prefix=/usr/share/workspace/custom-z3 \
+# && cd build; sed -i -e 's/CXXFLAGS= /CXXFLAGS= -std=c++03 /' config.mk \
+# && make && make install
+#
+#ENV LD_LIBRARY_PATH '/usr/share/workspace/custom-z3/lib:/usr/local/lib'
+#
+#RUN cd /usr/share/workspace/trau/build \
+# && sed -i -e 's|/home/osboxes/customZ3|/usr/share/workspace/custom-z3|' config.mk \
 # && make clean && make \
-# && mv Trau /usr/share/workspace/
-
-
+# && mv Trau /usr/local/bin/trau \
+# && chmod 755 /usr/local/bin/trau
 
 # Set container default behavior
 WORKDIR "/usr/share/workspace/benchmarks"
@@ -111,5 +93,3 @@ WORKDIR "/usr/share/workspace/${COMPOSE_PROJECT_NAME}"
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python"]
-
-

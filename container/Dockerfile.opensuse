@@ -2,25 +2,25 @@ FROM opensuse
 
 # Add system level dependencies
 RUN zypper --non-interactive update && zypper --non-interactive install --no-recommends \
-    tar wget vim less unzip gcc5-c++ gcc5 gcc-c++ gcc cmake libuuid-devel java-1_8_0-openjdk zlib-devel \
+    git tar wget vim less unzip gcc5-c++ gcc5 gcc-c++ gcc cmake libuuid-devel java-1_8_0-openjdk \
+    readline-devel sqlite3-devel libbz2-devel zlib-devel libopenssl-devel \
  && zypper clean -a
 
 # Setup a common shell environment
 ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.bash_common /root
 ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.common.vim /root
-ADD https://gist.github.com/hsuhw/3313a3f752bf718c5c78/raw/.gitconfig /root
+ADD https://gist.githubusercontent.com/hsuhw/3313a3f752bf718c5c78/raw/.gitconfig /root
 
-RUN echo "\nsource ~/.bash_common" >> ~/.bashrc \
- && echo "\nsource ~/.common.vim" >> ~/.vimrc
+RUN printf "\nsource ~/.bash_common\n" >> ~/.bashrc \
+ && printf "\nsource ~/.common.vim\n" >> ~/.vimrc
 
-# Install python3.6.6
+# Install Python3
 ENV PYTHON_VERSION 3.6.6
+ENV PYENV_ROOT /root/.pyenv
+ENV PATH "${PYENV_ROOT}/versions/${PYTHON_VERSION}/bin:${PATH}"
 
-RUN wget -O python3.zip "https://github.com/python/cpython/archive/v${PYTHON_VERSION}.zip" \
- && unzip python3.zip && rm python3.zip \
- && cd cpython-3.6.6 \
- && ./configure \
- && make && make install
+RUN git clone https://github.com/pyenv/pyenv.git ~/.pyenv \
+ && ${PYENV_ROOT}/bin/pyenv install ${PYTHON_VERSION}
 
 # Install OpenFst
 ENV OPENFST_VERSION 1.6.8
@@ -35,7 +35,7 @@ RUN wget -O openfst.tar.gz "http://www.openfst.org/twiki/pub/FST/FstDownload/ope
 
 # Install ANTLR4
 ENV ANTLR_VERSION 4.7.1
-ENV CLASSPATH=".:/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar:${CLASSPATH}"
+ENV CLASSPATH ".:/usr/local/lib/antlr-${ANTLR_VERSION}-complete.jar:${CLASSPATH}"
 
 RUN cd /usr/local/lib \
  && wget "https://www.antlr.org/download/antlr-${ANTLR_VERSION}-complete.jar" \
