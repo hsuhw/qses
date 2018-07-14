@@ -12,7 +12,7 @@ ENV PIPENV_VENV_IN_PROJECT 1
 # Setup a common shell environment
 ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.bash_common /root
 ADD https://gist.githubusercontent.com/hsuhw/36a711277a448085e0ac/raw/.common.vim /root
-ADD https://gist.github.com/hsuhw/3313a3f752bf718c5c78/raw/.gitconfig /root
+ADD https://gist.githubusercontent.com/hsuhw/3313a3f752bf718c5c78/raw/.gitconfig /root
 
 RUN printf "\nsource ~/.bash_common\n" >> ~/.bashrc \
  && printf "\nsource ~/.common.vim\n" >> ~/.vimrc
