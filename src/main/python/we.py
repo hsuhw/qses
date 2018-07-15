@@ -133,7 +133,7 @@ def printProg(type,tr,init,final,lengthCons):
     ifStart = " {"
     ifEnd = "}"
     randomDecl = "      rdn =  __VERIFIER_nondet_int();"
-  
+
   # preprocessing, middle variables declaration
   visitedNode = set()
   node2Count = dict()
@@ -251,36 +251,36 @@ def main():
   if len(sys.argv) < 3 :
     print 'please give word equation with two arguments as the two words (and a third argument as a length constraint'
     quit()
-  
+
   # check alphabets
   if not(sys.argv[1].isalpha() and sys.argv[2].isalpha()):
     print 'strings must be alphabets, where uppercase as constants and lowercases as variables'
     quit()
-  
+
   # start
   we = (list(sys.argv[1]), list(sys.argv[2]))
-  
+
   print 'The word equation: ', sys.argv[1] + '=' + sys.argv[2]
   print '  string1 in list:', we[0]
   print '  string2 in list:', we[1]
-  
+
   if (len(sys.argv)==4): # we have a string length constraint
     lengthCons = sys.argv[3]
   else:
     lengthCons = ""
-  
+
   #print we[0][0], '---', we[0][1:]
-  
+
   pool = list()    # nodes (word equations) to be transformed
   visited = list() # processed nodes
-  
+
   # data types for storing a counter automaton
   # state: a pair-tuple of two "list of char" as a word equation
   # transition: dictionary with key=state, value=set of pair tuple of (length statement,target state)
   finalS = ''.join(we[0]),''.join(we[1]) # final state
   initS  = '',''  # initial state (successful node)
   trans  = dict() # transition
-  
+
   # 1st transformation
   visited += [we]
   tmp,transTmp = transform(we[0],we[1])
@@ -288,7 +288,7 @@ def main():
   print transTmp
   addTrans(trans,transTmp)
   pool += tmp
-  
+
   # rest transformations
   while pool!=[]:
     we = pool[0]
@@ -304,7 +304,7 @@ def main():
   #  print '\ncurrent status'
   #  print 'pool', pool
   #  print 'visited', visited
-  
+
   print
   print
   printTrans(trans)

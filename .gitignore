@@ -184,6 +184,7 @@ celerybeat-schedule
 
 ### Project Specific Rules
 *.*Log
-*.tokens
 !/container/build
 /benchmarks
+src/main/python/generated/*
+!src/main/python/generated/__init__.py

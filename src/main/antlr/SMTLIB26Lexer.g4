@@ -66,7 +66,7 @@ WS                 : [\t\r\n\f ]+ { skip(); };
 fragment DIGIT     : [0-9];
 fragment HEXDIGIT  : DIGIT | [a-fA-F];
 fragment LETTER    : [a-zA-Z];
-fragment NONLETTER : [-+~!@$%^&*_=<>.?\/];
+fragment NONLETTER : [-+~!@$%^&*_=<>.?/];
 fragment ESCAPE    : '""';
 
 // General Tokens
@@ -94,7 +94,7 @@ TOKEN_CMD_DECLARE_DATATYPES     : 'declare-datatypes';
 TOKEN_CMD_DECLARE_FUN           : 'declare-fun';
 TOKEN_CMD_DECLARE_SORT          : 'declare-sort';
 TOKEN_CMD_DEFINE_FUN            : 'define-fun';
-TOKEN_CMD_DEFINE_FUN_REC        : 'define-fun';
+TOKEN_CMD_DEFINE_FUN_REC        : 'define-fun-rec';
 TOKEN_CMD_DEFINE_FUNS_REC       : 'define-funs-rec';
 TOKEN_CMD_DEFINE_SORT           : 'define-sort';
 TOKEN_CMD_ECHO                  : 'echo';
