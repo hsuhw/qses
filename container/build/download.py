@@ -13,8 +13,8 @@ def download(url, result_name, expected_size_kb):
         print('`%s` download failed, retrying...' % result_name)
         download(url, result_name, expected_size_kb)
 
-def main():
-    download(sys.argv[1], sys.argv[2], sys.argv[3])
+def main(argv):
+    download(argv[1], argv[2], argv[3])
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv)
