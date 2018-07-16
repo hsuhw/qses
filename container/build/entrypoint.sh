@@ -14,7 +14,7 @@ echo 'Check problem sets directory:'
 (echo 'pisa.zip not found, downloading...' \
  && python3 /download.py "https://drive.google.com/uc?id=1LJar0OXSRBD03mRBZEfnQRs3-QsuRSJp&export=download" /pisa.zip 5 \
  && echo "Unpack and move into: ${BENCHMARKS_PATH}/piza" \
- && unzip -d /tmp /pisa.zip && mv /tmp/pisa ${BENCHMARKS_PATH}/piza && mv /pisa.zip ${BENCHMARKS_PATH})
+ && unzip -d /tmp /pisa.zip && mv /tmp/pisa ${BENCHMARKS_PATH}/pisa && mv /pisa.zip ${BENCHMARKS_PATH})
 
 (test -e ${BENCHMARKS_PATH}/appscan.zip && test $(stat -c%s ${BENCHMARKS_PATH}/appscan.zip) -gt 4000 \
  && echo 'appscan found') || \
