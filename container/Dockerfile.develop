@@ -36,27 +36,27 @@ RUN wget -O z3.tar.gz "https://github.com/Z3Prover/z3/archive/z3-${Z3_VERSION}.t
  && python scripts/mk_make.py && cd build; make && make install \
  && cd /; rm -rf /usr/src/z3
 
-## Install Trau
-#WORKDIR /usr/share/workspace
-#
+# Install Trau
 #ENV TRAU_VERSION 1.1
 #
 #RUN wget -O trau.tar.gz "https://github.com/diepbp/FAT/archive/v${TRAU_VERSION}.tar.gz" \
 # && mkdir -p /usr/share/workspace/trau \
 # && tar -xzC /usr/share/workspace/trau --strip-components=1 -f trau.tar.gz \
 # && rm -rf trau.tar.gz
-#
-#RUN cd /usr/share/workspace/trau \
-# && unzip z3-z3-4.4.1.0.zip && mv z3-z3-4.4.1.0 /usr/share/workspace/custom-z3 \
-# && cd /usr/share/workspace/custom-z3 \
-# && python scripts/mk_make.py --prefix=/usr/share/workspace/custom-z3 \
-# && cd build; sed -i -e 's/CXXFLAGS= /CXXFLAGS= -std=c++03 /' config.mk \
-# && make && make install
-#
-#ENV LD_LIBRARY_PATH '/usr/share/workspace/custom-z3/lib:/usr/local/lib'
-#
-#RUN cd /usr/share/workspace/trau/build \
-# && sed -i -e 's|/home/osboxes/customZ3|/usr/share/workspace/custom-z3|' config.mk \
-# && make clean && make \
-# && mv Trau /usr/local/bin/trau \
-# && chmod 755 /usr/local/bin/trau
+
+RUN git clone https://github.com/diepbp/FAT \
+ && mv FAT /usr/share/workspace/trau \
+ && cd /usr/share/workspace/trau \
+ && unzip z3-z3-4.4.1.0.zip && mv z3-z3-4.4.1.0 /usr/share/workspace/custom-z3 \
+ && cd /usr/share/workspace/custom-z3 \
+ && python scripts/mk_make.py --prefix=/usr/share/workspace/custom-z3 \
+ && cd build; sed -i -e 's/CXXFLAGS= /CXXFLAGS= -std=c++03 /' config.mk \
+ && make && make install
+
+ENV LD_LIBRARY_PATH '/usr/share/workspace/custom-z3/lib:/usr/local/lib'
+
+RUN cd /usr/share/workspace/trau/build \
+ && sed -i -e 's|/home/osboxes/customZ3|/usr/share/workspace/custom-z3|' config.mk \
+ && make clean && make \
+ && mv Trau /usr/local/bin/trau \
+ && chmod 755 /usr/local/bin/trau
