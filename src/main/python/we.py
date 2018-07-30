@@ -59,11 +59,11 @@ def isString(str):
   return re.match(r"^\".*\"$",str) or re.match(r"^\'.*\'$",str)
 
 def isVariable(str):
-  return re.match(r"^[_a-zA-z][_a-zA-z0-9]*",str)
+  return re.match(r"^[_$a-zA-z].*",str)
 
 def processElements(strList):
   eList = []
-  print strList
+  #print strList
   for s in strList:
     if isString(s):  # string
       eList += string2elements(s[1:len(s)-1])
@@ -75,8 +75,8 @@ def processElements(strList):
 
 # Process a line of input and return a word equation
 def processLine(line):
-  strPair = line.strip().split(' = ')  # separate left and right of a word equation
-  print strPair[0], ', ', strPair[1]
+  strPair = line.split(' = ')  # separate left and right of a word equation
+  #print strPair[0], ', ', strPair[1]
   assert(len(strPair)==2)
   return (processElements(strPair[0].split()),processElements(strPair[1].split()))
   #return (processElements(re.split('[ \t]+',strPair[0])),processElements(re.split('[ \t]+',strPair[1])))
@@ -88,6 +88,7 @@ def readInputFromFile(arg):
   with open(arg[2]) as fp:
     lines = fp.readlines()
   for line in lines:
+    line.strip()
     if isCommentLine(line):
       pass
     elif ('\"' in line):  # word equation, need process
@@ -111,6 +112,9 @@ def genWordEqutaionFull(we):
 
 def genWordEqutaionSimple(we):
   return [e.get_value() for e in we[0]], ' = ', [e.get_value() for e in we[1]]
+#
+def genWordEqutaionCompact(we):
+  return ''.join([e.get_value() for e in we[0]]) + ' = ' + ''.join([e.get_value() for e in we[1]])
 #
 def genStrKey(we):  # return a pair of string representing a word equation
   return ''.join([e.get_value() for e in we[0]]), ''.join([e.get_value() for e in we[1]])
@@ -161,18 +165,21 @@ def transform(L1,L2):
   if h1.is_const() and h2.is_const() and not(h1.eq(h2)): # case1: distinct constants
     ret1 = []
     ret2 = dict()
-  elif h1.eq(h2): #case2: identical constants or variables
+  elif (h1.is_connect() and not h2.is_connect()) or (h2.is_connect() and not h1.is_connect()): # connect element : other element
+    ret1 = []
+    ret2 = dict()
+  elif h1.eq(h2): #case2: identical constants or variables (including connect element)
     ret1 = [ (L1[1:],L2[1:]) ]
     ret2 = { genStrKey(ret1[0]):{("","",s)} }
   elif h1.is_const() and h2.is_var() : # case3: constant-variable
     ret1 = [ ([c for c in L1 if not c.eq(h2)],[c for c in L2 if not c.eq(h2)]), ([h1 if c.eq(h2) else c for c in L1],[h1 if c.eq(h2) else c for c in L2]), ([v for sublist in [[h1,h2] if c.eq(h2) else [c] for c in L1] for v in sublist],[v for sublist in [[h1,h2] if c.eq(h2) else [c] for c in L2] for v in sublist]) ]
-    ret2 = { genStrKey(ret1[0]):{(h2.get_value()+"=0",h2.get_value()+"=\"\"",s)}, genStrKey(ret1[1]):{(h2.get_value()+"=1",h2.get_value()+"=\""+h1.get_value()+"\"",s)}, genStrKey(ret1[2]):{(h2.get_value()+"="+h2.get_value()+"+1",h2.get_value()+"="+h2.get_value()+"+\""+h1.get_value()+"\"",s)} }
+    ret2 = { genStrKey(ret1[0]):{(h2.get_value()+"=0",h2.get_value()+"=\"\"",s)}, genStrKey(ret1[1]):{(h2.get_value()+"=1",h2.get_value()+"=\""+h1.get_value()+"\"",s)}, genStrKey(ret1[2]):{(h2.get_value()+"="+h2.get_value()+"+1",h2.get_value()+"="+"\""+h1.get_value()+"\"+"+h2.get_value(),s)} }
   elif h1.is_var() and h2.is_const() : # case4: variable-constant
     ret1 = [ ([c for c in L1 if not c.eq(h1)],[c for c in L2 if not c.eq(h1)]), ([h2 if c.eq(h1) else c for c in L1],[h2 if c.eq(h1) else c for c in L2]), ([v for sublist in [[h2,h1] if c.eq(h1) else [c] for c in L1] for v in sublist],[v for sublist in [[h2,h1] if c.eq(h1) else [c] for c in L2] for v in sublist]) ]
-    ret2 = { genStrKey(ret1[0]):{(h1.get_value()+"=0",h1.get_value()+"=\"\"",s)}, genStrKey(ret1[1]):{(h1.get_value()+"=1",h1.get_value()+"=\""+h2.get_value()+"\"",s)}, genStrKey(ret1[2]):{(h1.get_value()+"="+h1.get_value()+"+1",h1.get_value()+"="+h1.get_value()+"+\""+h2.get_value()+"\"",s)} }
+    ret2 = { genStrKey(ret1[0]):{(h1.get_value()+"=0",h1.get_value()+"=\"\"",s)}, genStrKey(ret1[1]):{(h1.get_value()+"=1",h1.get_value()+"=\""+h2.get_value()+"\"",s)}, genStrKey(ret1[2]):{(h1.get_value()+"="+h1.get_value()+"+1",h1.get_value()+"="+"\""+h2.get_value()+"\"+"+h1.get_value(),s)} }
   elif h1.is_var() and h2.is_var() : # case5: variable-variable
     ret1 = [ ([c for c in L1 if not c.eq(h1)],[c for c in L2 if not c.eq(h1)]), ([c for c in L1 if not c.eq(h2)],[c for c in L2 if not c.eq(h2)]), ([h1 if c.eq(h2) else c for c in L1],[h1 if c.eq(h2) else c for c in L2]), ([v for sublist in [[h2,h1] if c.eq(h1) else [c] for c in L1] for v in sublist],[v for sublist in [[h2,h1] if c.eq(h1) else [c] for c in L2] for v in sublist]), ([v for sublist in [[h1,h2] if c.eq(h2) else [c] for c in L1] for v in sublist],[v for sublist in [[h1,h2] if c.eq(h2) else [c] for c in L2] for v in sublist]) ]
-    ret2 = { genStrKey(ret1[0]):{(h1.get_value()+"=0",h1.get_value()+"=\"\"",s)}, genStrKey(ret1[1]):{(h2.get_value()+"=0",h2.get_value()+"=\"\"",s)}, genStrKey(ret1[2]):{(h2.get_value()+"="+h1.get_value(),h2.get_value()+"="+h1.get_value(),s)}, genStrKey(ret1[3]):{(h1.get_value()+"="+h1.get_value()+"+"+h2.get_value(),h1.get_value()+"="+h1.get_value()+"+"+h2.get_value(),s)}, genStrKey(ret1[4]):{(h2.get_value()+"="+h1.get_value()+"+"+h2.get_value(),h2.get_value()+"="+h1.get_value()+"+"+h2.get_value(),s)} }
+    ret2 = { genStrKey(ret1[0]):{(h1.get_value()+"=0",h1.get_value()+"=\"\"",s)}, genStrKey(ret1[1]):{(h2.get_value()+"=0",h2.get_value()+"=\"\"",s)}, genStrKey(ret1[2]):{(h2.get_value()+"="+h1.get_value(),h2.get_value()+"="+h1.get_value(),s)}, genStrKey(ret1[3]):{(h1.get_value()+"="+h2.get_value()+"+"+h1.get_value(),h1.get_value()+"="+h2.get_value()+"+"+h1.get_value(),s)}, genStrKey(ret1[4]):{(h2.get_value()+"="+h1.get_value()+"+"+h2.get_value(),h2.get_value()+"="+h1.get_value()+"+"+h2.get_value(),s)} }
   else:
 #    print 'Error, wrong case'
     ret1 = []
@@ -226,10 +233,10 @@ def printPath(tr,start,end):
     print "node = ", start, ", next = ", tr[start]
     for s in tr[start]:
       print "==", s, "=="
-      printPath(tr,s[1],end)
+      printPath(tr,s[2],end)
     print "-----", start
   else:
-    print "----- no value"
+    print "----- no path"
 
 # output transitions to a graphviz dot/png
 def printDot(trans,root):
@@ -238,7 +245,7 @@ def printDot(trans,root):
   for t in trans.keys():
     dot.node(str(t),str(t))
     for r in trans[t]:
-      dot.edge(str(t),str(r[1]),r[0])
+      dot.edge(str(t),str(r[2]),r[0]+'\n'+r[1])
   print dot.source
   dot.render()
 
@@ -344,26 +351,28 @@ def printProg(type,tr,init,final,lengthCons):
           print "      if (rdn==" + str(rdnCount) + ") " + ifStart
         if (s[0]!=""):
           print "        " + s[0] + ';'
-        if node2Count.has_key(s[1]):
-          print "        nodeNo=" + str(node2Count[s[1]]) + ';'
+        if (s[1]!=""):
+          print "        //" + s[0] + ';'  #infomation for retrieving solution
+        if node2Count.has_key(s[2]):
+          print "        nodeNo=" + str(node2Count[s[2]]) + ';'
         else:
           nodeCount += 1
           print "        nodeNo=" + str(nodeCount) + ';'
-          node2Count[s[1]]=nodeCount
-        queuedNode.add(s[1])
+          node2Count[s[2]]=nodeCount
+        queuedNode.add(s[2])
         print "      " + ifEnd
         rdnCount += 1
     else:
       for s in tmpLabl:
         if (s[0]!=""):
           print "      " + s[0] + ';'
-        if node2Count.has_key(s[1]):
-          print "      nodeNo=" + str(node2Count[s[1]]) + ';'
+        if node2Count.has_key(s[2]):
+          print "      nodeNo=" + str(node2Count[s[2]]) + ';'
         else:
           nodeCount += 1
           print "      nodeNo=" + str(nodeCount) + ';'
-          node2Count[s[1]]=nodeCount
-        queuedNode.add(s[1])
+          node2Count[s[2]]=nodeCount
+        queuedNode.add(s[2])
 
     print "    " + ifEnd
   print "  " + whileEnd
@@ -387,13 +396,20 @@ def main():
   # check option
   if (len(sys.argv)==3 and sys.argv[1]=='-f'):
     weList, lcList = readInputFromFile(sys.argv)
-    print "weList read:"
+    print str(len(weList)) + " word equations read:"
     for (e1,e2) in weList:
-      print [e.to_string() for e in e1], [e.to_string() for e in e2]
-    tmp = connectWordEqs(weList)
-    print genWordEqutaionFull(tmp)
-    print genWordEqutaionSimple(tmp)
-    we = tmp
+      #print [e.to_string() for e in e1], [e.to_string() for e in e2]
+      print genWordEqutaionCompact((e1,e2))
+    we = connectWordEqs(weList)
+    print
+    print "after connected:"
+    #print genWordEqutaionFull(we)
+    #print genWordEqutaionSimple(we)
+    print genWordEqutaionCompact(we)
+    print
+    print 'lenth constraints read:'
+    for lc in lcList:
+      print lc
   else:
     print 'usage: python we.py -f spec-file'
     print '  spec-file contains word equations (one equation one line) and length constraints (one equation one line)'
