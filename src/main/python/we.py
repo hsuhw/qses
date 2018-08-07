@@ -1,4 +1,5 @@
 from typing import List, Tuple, Optional
+from collections import Counter
 
 
 class Element:
@@ -62,7 +63,7 @@ class WordEquation:
         return lh, rh
 
     def variables(self) -> List[Variable]:
-        return [x for x in self.lhs + self.rhs if isinstance(x, Variable)]
+        return [e for e in self.lhs + self.rhs if isinstance(e, Variable)]
 
     def peek(self) -> Tuple[Optional[Element], Optional[Element]]:
         return WordEquation.get_heads_or_none(self.lhs, self.rhs)
@@ -71,7 +72,11 @@ class WordEquation:
         return self.lhs[:], self.rhs[:]  # a faster way to make list copies
 
     def is_quadratic(self):
-        pass  # TODO
+        count = Counter(self.lhs + self.rhs)
+        for e in self.variables():
+            if count[e] > 2:
+                return False
+        return True
 
     def is_simply_unsolvable(self):
         lh, rh = self.peek()
