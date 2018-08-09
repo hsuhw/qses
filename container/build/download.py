@@ -1,6 +1,7 @@
 import sys
 import urllib.request
 
+
 def download(url, result_name, expected_size_kb):
     expected_size_kb = int(expected_size_kb)
     req = urllib.request.urlopen(url)
@@ -13,8 +14,10 @@ def download(url, result_name, expected_size_kb):
         print('`%s` download failed, retrying...' % result_name)
         download(url, result_name, expected_size_kb)
 
+
 def main(argv):
     download(argv[1], argv[2], argv[3])
+
 
 if __name__ == '__main__':
     main(sys.argv)
