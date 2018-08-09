@@ -1,7 +1,7 @@
 from typing import List, Tuple, Dict, Set, Optional
 from enum import Enum, unique, auto
 from functools import reduce
-from we import WordEquation, Element, Variable
+from we import WordEquation, Element, is_var
 from prob import Problem, InvalidProblemError
 
 
@@ -60,7 +60,7 @@ class SolveTree:
             return True
 
 
-class DefaultSolver:
+class BasicSolver:
     def __init__(self, prob: Problem):
         if len(prob.word_equations) < 1:
             raise InvalidProblemError()
@@ -74,12 +74,12 @@ class DefaultSolver:
     def transform_with_emptiness(self, we: WordEquation):
         lh, rh = hh = we.peek()
         if not lh:
-            if rh and isinstance(rh, Variable):
+            if rh and is_var(rh):
                 new_we = we.remove_right_head_from_all()
                 if self.resolve.add_node(we, new_we, Rewrite.rvar_be_empty, hh):
                     self.pending_checks.append(new_we)
         else:
-            if isinstance(lh, Variable):
+            if is_var(lh):
                 new_we = we.remove_left_head_from_all()
                 if self.resolve.add_node(we, new_we, Rewrite.lvar_be_empty, hh):
                     self.pending_checks.append(new_we)
