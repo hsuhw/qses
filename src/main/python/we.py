@@ -84,8 +84,10 @@ class WordEquation:
                  isinstance(rh, Character) and lh != rh) or
                 (not lh and rh and not isinstance(rh, Variable)) or
                 (not rh and lh and not isinstance(lh, Variable)) or
-                (lh == DELIMITER and rh != DELIMITER) or
-                (rh == DELIMITER and lh != DELIMITER))
+                (lh == DELIMITER and rh != DELIMITER and
+                 not isinstance(rh, Variable)) or
+                (rh == DELIMITER and lh != DELIMITER and
+                 not isinstance(lh, Variable)))
 
     def is_both_var_headed(self):
         lh, rh = self.peek()
