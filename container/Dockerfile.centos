@@ -55,9 +55,9 @@ RUN wget -O z3.tar.gz "https://github.com/Z3Prover/z3/archive/z3-${Z3_VERSION}.t
  && python scripts/mk_make.py && cd build; make && make install \
  && cd /; rm -rf /usr/src/z3
 
-## Install Trau
-#WORKDIR /usr/share/workspace
-#
+# Install Trau
+WORKDIR /usr/share/workspace
+
 #ENV TRAU_VERSION 1.1
 #
 #RUN wget -O trau.tar.gz "https://github.com/diepbp/FAT/archive/v${TRAU_VERSION}.tar.gz" \
