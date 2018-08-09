@@ -186,5 +186,7 @@ celerybeat-schedule
 *.*Log
 !/container/build
 /benchmarks
+src/main/antlr/*
+!src/main/antlr/*.g4
 src/main/python/generated/*
 !src/main/python/generated/__init__.py

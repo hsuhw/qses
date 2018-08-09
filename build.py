@@ -1,7 +1,8 @@
 import os
+import re
 import shutil
 from glob import glob
-from pybuilder.core import init, task, before, after, depends, use_plugin
+from pybuilder.core import init, before, use_plugin
 from pybuilder.utils import assert_can_execute
 
 use_plugin('python.core')
@@ -18,7 +19,8 @@ def set_properties(project):
     project.set_property('verbose', True)
     project.set_property('dir_source_main_antlr', 'src/main/antlr')
     project.set_property('dir_source_antlr_dest', 'src/main/python/generated')
-    project.set_property('antlr_generated_types', ['*.py', '*.interp', '*.tokens'])
+    project.set_property('antlr_generated_types',
+                         ['*.py', '*.interp', '*.tokens'])
 
     # flake8
     project.set_property('flake8_break_build', True)
@@ -50,18 +52,21 @@ def compile_antlr_grammar_sources(project, logger):
 
     dest_dir = project.get_property('dir_source_antlr_dest')
     tgt_files = []
-    for type in project.get_property('antlr_generated_types'):
-        tgt_files.extend(glob(f'{src_dir}/SMTLIB26{type}'))
+    for extension in project.get_property('antlr_generated_types'):
+        tgt_files.extend(glob(f'{src_dir}/SMTLIB26{extension}'))
     for file in tgt_files:
-        shutil.move(file, dest_dir)
+        if re.match('.*\.tokens', file):
+            shutil.copy(file, dest_dir)
+        else:
+            shutil.move(file, dest_dir)
 
 
 @before('clean')
 def clean_antlr_generated_files(project, logger):
     dest_dir = project.get_property('dir_source_antlr_dest')
     tgt_files = []
-    for type in project.get_property('antlr_generated_types'):
-        tgt_files.extend(glob(f'{dest_dir}/SMTLIB26{type}'))
+    for extension in project.get_property('antlr_generated_types'):
+        tgt_files.extend(glob(f'{dest_dir}/SMTLIB26{extension}'))
     for file in tgt_files:
         logger.info(f'Removing generated file {file}')
         os.remove(file)
