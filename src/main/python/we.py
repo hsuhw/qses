@@ -40,6 +40,35 @@ DELIMITER = Delimiter()
 WordExpression = List[Element]
 
 
+def heads_or_none(lhs, rhs) -> Tuple[Optional[Element], Optional[Element]]:
+    [lh], [rh] = lhs[:1] or [None], rhs[:1] or [None]
+    return lh, rh
+
+
+def is_var(e: Element):
+    return isinstance(e, Variable)
+
+
+def not_var(e: Element):
+    return not isinstance(e, Variable)
+
+
+def is_char(e: Element):
+    return isinstance(e, Character)
+
+
+def not_char(e: Element):
+    return not isinstance(e, Character)
+
+
+def is_del(e: Element):
+    return e is DELIMITER
+
+
+def not_del(e: Element):
+    return e is not DELIMITER
+
+
 class WordEquation:
     def __init__(self, lhs: WordExpression, rhs: WordExpression):
         self.lhs: WordExpression = lhs
@@ -56,17 +85,11 @@ class WordEquation:
     def __hash__(self):
         return hash(str(self))
 
-    @staticmethod
-    def get_heads_or_none(lhs, rhs) \
-            -> Tuple[Optional[Element], Optional[Element]]:
-        [lh], [rh] = lhs[:1] or [None], rhs[:1] or [None]
-        return lh, rh
-
     def variables(self) -> List[Variable]:
         return [e for e in self.lhs + self.rhs if isinstance(e, Variable)]
 
     def peek(self) -> Tuple[Optional[Element], Optional[Element]]:
-        return WordEquation.get_heads_or_none(self.lhs, self.rhs)
+        return heads_or_none(self.lhs, self.rhs)
 
     def copy_expressions(self) -> Tuple[WordExpression, WordExpression]:
         return self.lhs[:], self.rhs[:]  # a faster way to make list copies
@@ -80,26 +103,23 @@ class WordEquation:
 
     def is_simply_unsolvable(self):
         lh, rh = self.peek()
-        return ((isinstance(lh, Character) and
-                 isinstance(rh, Character) and lh != rh) or
-                (not lh and rh and not isinstance(rh, Variable)) or
-                (not rh and lh and not isinstance(lh, Variable)) or
-                (lh == DELIMITER and rh != DELIMITER and
-                 not isinstance(rh, Variable)) or
-                (rh == DELIMITER and lh != DELIMITER and
-                 not isinstance(lh, Variable)))
+        return ((is_char(lh) and is_char(rh) and lh != rh) or
+                (not lh and rh and not_var(rh)) or
+                (not rh and lh and not_var(lh)) or
+                (is_del(lh) and not_del(rh) and not_var(rh)) or
+                (is_del(rh) and not_del(lh) and not is_var(lh)))
 
     def is_both_var_headed(self):
         lh, rh = self.peek()
-        return isinstance(lh, Variable) and isinstance(rh, Variable)
+        return is_var(lh) and is_var(rh)
 
     def is_char_var_headed(self):
         lh, rh = self.peek()
-        return isinstance(lh, Character) and isinstance(rh, Variable)
+        return is_char(lh) and is_var(rh)
 
     def is_var_char_headed(self):
         lh, rh = self.peek()
-        return isinstance(lh, Variable) and isinstance(rh, Character)
+        return is_var(lh) and is_char(rh)
 
     def has_emptiness(self):
         return not (self.lhs and self.rhs)
@@ -115,13 +135,12 @@ class WordEquation:
 
     def remove_trivial_prefix(self) -> 'WordEquation':
         lhs, rhs = self.copy_expressions()
-        lh, rh = WordEquation.get_heads_or_none(lhs, rhs)
-        while ((isinstance(lh, Character) and
-                isinstance(rh, Character) and lh == rh) or
-               (lh is DELIMITER and rh is DELIMITER)):
+        lh, rh = heads_or_none(lhs, rhs)
+        while ((is_char(lh) and is_char(rh) and lh == rh) or
+               (is_del(lh) and is_del(rh))):
             lhs.pop(0)
             rhs.pop(0)
-            lh, rh = WordEquation.get_heads_or_none(lhs, rhs)
+            lh, rh = heads_or_none(lhs, rhs)
         return WordEquation(lhs, rhs)
 
     def remove_left_head_from_all(self) -> 'WordEquation':
