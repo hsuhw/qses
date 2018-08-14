@@ -1,9 +1,9 @@
 from typing import List, Tuple, Dict, Set, Optional
 from enum import Enum, unique, auto
 from functools import reduce
-from we import WordEquation, Element, is_var
+from we import WordEquation, Element, is_var, is_del, not_del
 from prob import Problem, InvalidProblemError
-
+from graphviz import Digraph
 
 @unique
 class Rewrite(Enum):
@@ -35,6 +35,9 @@ class Transform:
     def __hash__(self):
         return hash(self.source) + hash(self.rewrite) + hash(str(self.record))
 
+    def __repr__(self):
+        return f'{self.source}, {self.rewrite}, {self.record}'
+
 
 class SolveTree:
     success_end: WordEquation = WordEquation([], [])
@@ -58,7 +61,7 @@ class SolveTree:
         else:
             self.node_relations[node] = {transform}
             return True
-
+    
 
 class BasicSolver:
     def __init__(self, prob: Problem):
@@ -73,74 +76,78 @@ class BasicSolver:
 
     def transform_with_emptiness(self, we: WordEquation):
         lh, rh = hh = we.peek()
-        if not lh:
-            if rh and is_var(rh):
-                new_we = we.remove_right_head_from_all()
-                if self.resolve.add_node(we, new_we, Rewrite.rvar_be_empty, hh):
-                    self.pending_checks.append(new_we)
+        if (not lh or is_del(lh)) and rh and is_var(rh):
+            new_we = we.remove_right_head_from_all().remove_trivial_prefix()
+            if self.resolve.add_node(we, new_we, Rewrite.rvar_be_empty, hh):
+                self.pending_checks.append(new_we)
+        elif (not rh or is_del(rh)) and lh and is_var(lh):
+            new_we = we.remove_left_head_from_all().remove_trivial_prefix()
+            if self.resolve.add_node(we, new_we, Rewrite.lvar_be_empty, hh):
+                self.pending_checks.append(new_we)
         else:
-            if is_var(lh):
-                new_we = we.remove_left_head_from_all()
-                if self.resolve.add_node(we, new_we, Rewrite.lvar_be_empty, hh):
-                    self.pending_checks.append(new_we)
+            print(f'Unexpected case reached in transform_with_emptiness: {lh},{rh}')
+            assert(False)
 
     def transform_both_var_case(self, we: WordEquation):
         lh, rh = hh = we.peek()
 
-        case1 = we.remove_left_head_from_all()
+        case1 = we.remove_left_head_from_all().remove_trivial_prefix()
         if self.resolve.add_node(we, case1, Rewrite.lvar_be_empty, hh):
             self.pending_checks.append(case1)
 
-        case2 = we.remove_right_head_from_all()
+        case2 = we.remove_right_head_from_all().remove_trivial_prefix()
         if self.resolve.add_node(we, case2, Rewrite.rvar_be_empty, hh):
             self.pending_checks.append(case2)
 
-        case3 = we.replace(lh, rh).remove_heads()
+        case3 = we.replace(lh, rh).remove_heads().remove_trivial_prefix()
         if self.resolve.add_node(we, case3, Rewrite.lvar_be_rvar, hh):
             self.pending_checks.append(case3)
 
-        case4 = we.replace_with(lh, [rh, lh]).remove_heads()
+        case4 = we.replace_with(lh, [rh, lh]).remove_heads().remove_trivial_prefix()
         if self.resolve.add_node(we, case4, Rewrite.lvar_longer_var, hh):
             self.pending_checks.append(case4)
 
-        case5 = we.replace_with(rh, [lh, rh]).remove_heads()
+        case5 = we.replace_with(rh, [lh, rh]).remove_heads().remove_trivial_prefix()
         if self.resolve.add_node(we, case5, Rewrite.rvar_longer_var, hh):
             self.pending_checks.append(case5)
 
     def transform_char_var_case(self, we: WordEquation):
         lh, rh = hh = we.peek()
 
-        case1 = we.remove_right_head_from_all()
+        case1 = we.remove_right_head_from_all().remove_trivial_prefix()
         if self.resolve.add_node(we, case1, Rewrite.rvar_be_empty, hh):
             self.pending_checks.append(case1)
 
-        case2 = we.replace(rh, lh).remove_heads()
+        case2 = we.replace(rh, lh).remove_heads().remove_trivial_prefix()
         if self.resolve.add_node(we, case2, Rewrite.rvar_be_char, hh):
             self.pending_checks.append(case2)
 
-        case3 = we.replace_with(rh, [lh, rh]).remove_heads()
+        case3 = we.replace_with(rh, [lh, rh]).remove_heads().remove_trivial_prefix()
         if self.resolve.add_node(we, case3, Rewrite.rvar_longer_char, hh):
             self.pending_checks.append(case3)
 
     def transform_var_char_case(self, we: WordEquation):
         lh, rh = hh = we.peek()
 
-        case1 = we.remove_left_head_from_all()
+        case1 = we.remove_left_head_from_all().remove_trivial_prefix()
         if self.resolve.add_node(we, case1, Rewrite.lvar_be_empty, hh):
             self.pending_checks.append(case1)
 
-        case2 = we.replace(lh, rh).remove_heads()
+        case2 = we.replace(lh, rh).remove_heads().remove_trivial_prefix()
         if self.resolve.add_node(we, case2, Rewrite.lvar_be_char, hh):
             self.pending_checks.append(case2)
 
-        case3 = we.replace_with(lh, [rh, lh]).remove_heads()
+        case3 = we.replace_with(lh, [rh, lh]).remove_heads().remove_trivial_prefix()
         if self.resolve.add_node(we, case3, Rewrite.lvar_longer_char, hh):
             self.pending_checks.append(case3)
 
     def solve(self) -> SolveTree:
         while self.pending_checks:
-            curr_we = self.pending_checks.pop(0).remove_trivial_prefix()
-            if curr_we.is_simply_unsolvable():
+            #curr_we = self.pending_checks.pop(0).remove_trivial_prefix()
+            curr_we = self.pending_checks.pop(0)
+            if curr_we==self.resolve.success_end:
+                pass
+            elif curr_we.is_simply_unsolvable():
                 pass
             elif curr_we.has_emptiness():
                 self.transform_with_emptiness(curr_we)
@@ -150,4 +157,88 @@ class BasicSolver:
                 self.transform_char_var_case(curr_we)
             elif curr_we.is_var_char_headed():
                 self.transform_var_char_case(curr_we)
+            else:
+                print(curr_we)
+                #assert(False)
         return self.resolve
+
+# functions for output: pretty print, c program, graphviz, etc.
+def print_tree_plain(tree: SolveTree):
+    print(f'{tree.root}: ')
+    cnt_node = 1
+    for k in tree.node_relations.keys():
+        print(f'{cnt_node}  {k}')
+        cnt_node += 1
+        cnt = 1
+        for t in tree.node_relations[k]:
+            print(f'    {cnt}  {t})')
+            cnt += 1
+#
+def print_word_equation_pretty(we: WordEquation) -> str:
+    left_str = ''.join([e.value if not_del(e) else '#' for e in we.lhs]) or '\"\"'
+    right_str = ''.join([e.value if not_del(e) else '#' for e in we.rhs]) or '\"\"'
+    return f'{left_str}={right_str}'
+#
+def print_transform_rewrite_pretty(trans: Transform) -> str:
+    if trans.record[0]:
+        lval = trans.record[0].value
+    else:
+        lval = '\"\"'
+    if trans.record[1]:
+        rval = trans.record[1].value
+    else:
+        rval = '\"\"'
+    if (trans.rewrite==Rewrite.lvar_be_empty):
+        return f'{lval}=\"\"'
+    elif (trans.rewrite==Rewrite.rvar_be_empty):
+        return f'{rval}=\"\"'
+    elif (trans.rewrite==Rewrite.lvar_be_char):
+        return f'{lval}={rval}'
+    elif (trans.rewrite==Rewrite.rvar_be_char):
+        return f'{rval}={lval}'
+    elif (trans.rewrite==Rewrite.lvar_be_rvar):
+        return f'{lval}={rval}'
+    elif (trans.rewrite==Rewrite.lvar_longer_char):
+        return f'{lval}={rval}{lval}'
+    elif (trans.rewrite==Rewrite.rvar_longer_char):
+        return f'{rval}={lval}{rval}'
+    elif (trans.rewrite==Rewrite.lvar_longer_var):
+        return f'{lval}={rval}{lval}'
+    elif (trans.rewrite==Rewrite.rvar_longer_var):
+        return f'{rval}={lval}{rval}'
+#
+def print_tree_pretty(tree: SolveTree):
+    print(f'word equation: {print_word_equation_pretty(tree.root)}')
+    cnt_node = 1
+    for k in tree.node_relations.keys():
+        print(f'node{cnt_node}  {print_word_equation_pretty(k)}')
+        cnt_node += 1
+        cnt = 1
+        for t in tree.node_relations[k]:
+            print(f'    child{cnt}  {print_word_equation_pretty(t.source)}, {print_transform_rewrite_pretty(t)}')
+            cnt += 1
+#
+def print_tree_dot_pretty(tree:SolveTree):
+    we_str = print_word_equation_pretty(tree.root)
+    #if not tree.has_solution():
+    #    print('no solution for word equation {we_str}')
+
+    node = SolveTree.success_end
+    dot = Digraph(name = we_str, comment = we_str)
+    for k in tree.node_relations.keys():
+        node_str = print_word_equation_pretty(k)
+        dot.node(node_str,node_str)
+        for r in tree.node_relations[k]:
+            next_node_str = print_word_equation_pretty(r.source)
+            dot.edge(node_str,next_node_str,print_transform_rewrite_pretty(r))
+    print(dot.source)
+    dot.render()
+#
+
+#
+
+
+
+#
+
+

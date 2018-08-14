@@ -1,6 +1,6 @@
 from typing import Dict, List
 from enum import Enum, unique, auto
-from we import WordEquation, Element, Variable, Character
+from we import WordEquation, Element, Variable, Character, WordExpression
 from constr import RegularConstraint, LengthConstraint
 import re
 
@@ -58,7 +58,7 @@ class Problem:
 
 class ReadProb():
     def __init__(self):
-        self.word_equations: List[(List[Element],List[Element])] = []
+        self.word_equations: List[WordEquation] = []
         self.length_constraints: List[str] = []
         self.membership_constraints: List[str] = []
         
@@ -103,24 +103,31 @@ class ReadProb():
         return elem_list
 
     # Process a line of input and return a word equation
-    def process_line(self, line: str): # -> List[Tuple(List[Element],List[Element])]:
+    def process_line(self, line: str) -> WordEquation:
         str_pair = line.split(' = ')  # separate left and right of a word equation
         #print str_pair[0], ', ', strPair[1]
         assert(len(str_pair)==2)
-        return (self.process_elements(str_pair[0].split()),self.process_elements(str_pair[1].split()))
+        return WordEquation(self.process_elements(str_pair[0].split()),self.process_elements(str_pair[1].split()))
  
     def read_input_file(self, filename: str):
         with open(filename) as fp:
             lines = fp.readlines()
         for line in lines:
-            line.strip()
-            if self.is_comment_line(line) or self.is_empty_line(line):
+            ln = line.strip()
+            if self.is_comment_line(ln) or self.is_empty_line(ln):
                 pass
-            elif self.is_length_constraint_line(line):
-                self.length_constraints.append(line)
-            elif self.is_membership_constraint_line(line):
-                self.membership_constraints.append(line)
-            elif self.is_word_equation_line(line):
-                self.word_equations.append(self.process_line(line))
+            elif self.is_length_constraint_line(ln):
+                self.length_constraints.append(ln)
+            elif self.is_membership_constraint_line(ln):
+                self.membership_constraints.append(ln)
+            elif self.is_word_equation_line(ln):
+                self.word_equations.append(self.process_line(ln))
+#
+#
+def safely_add_word_equation_to_problem(we: WordEquation, prob: Problem):
+    for v in we.variables():
+        if (v.value not in prob.variables):
+            prob.declare_variable(v.value,VariableType.string)
+    prob.add_word_equation(we)
 #
 

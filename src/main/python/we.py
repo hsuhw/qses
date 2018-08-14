@@ -107,7 +107,7 @@ class WordEquation:
                 (not lh and rh and not_var(rh)) or
                 (not rh and lh and not_var(lh)) or
                 (is_del(lh) and not_del(rh) and not_var(rh)) or
-                (is_del(rh) and not_del(lh) and not is_var(lh)))
+                (is_del(rh) and not_del(lh) and not_var(lh)))
 
     def is_both_var_headed(self):
         lh, rh = self.peek()
@@ -122,7 +122,8 @@ class WordEquation:
         return is_var(lh) and is_char(rh)
 
     def has_emptiness(self):
-        return not (self.lhs and self.rhs)
+        lh, rh = self.peek()
+        return not lh or not rh or is_del(lh) or is_del(rh)
 
     def merge(self, other: 'WordEquation') -> 'WordEquation':
         lhs, rhs = self.copy_expressions()
