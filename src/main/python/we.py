@@ -17,6 +17,8 @@ class Element:
     def length(self):  # TODO: do it symbolically or concretely?
         return False
 
+    def __hash__(self):
+        return hash(str(self))
 
 class Character(Element):
     def length(self):
