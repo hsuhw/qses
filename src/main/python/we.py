@@ -3,8 +3,8 @@ from collections import Counter
 
 
 class Element:
-    def __init__(self, value):
-        self.value = value
+    def __init__(self, value: str):
+        self.value: str = value
 
     def __repr__(self):
         return f'{self.__class__.__name__[0]}({self.value})'
@@ -14,11 +14,12 @@ class Element:
             return self.value == other.value
         return False
 
+    def __hash__(self):
+        return hash(str(self))
+
     def length(self):  # TODO: do it symbolically or concretely?
         return False
 
-    def __hash__(self):
-        return hash(str(self))
 
 class Character(Element):
     def length(self):
@@ -27,7 +28,7 @@ class Character(Element):
 
 class Variable(Element):
     def length(self):
-        return f'{self.value}.len'
+        return f'{self.value}_len_'
 
 
 class Delimiter(Element):
@@ -39,7 +40,7 @@ class Delimiter(Element):
 
 
 DELIMITER = Delimiter()
-WordExpression = List[Element]
+Expression = List[Element]
 
 
 def heads_or_none(lhs, rhs) -> Tuple[Optional[Element], Optional[Element]]:
@@ -72,9 +73,9 @@ def not_del(e: Element):
 
 
 class WordEquation:
-    def __init__(self, lhs: WordExpression, rhs: WordExpression):
-        self.lhs: WordExpression = lhs
-        self.rhs: WordExpression = rhs
+    def __init__(self, lhs: Expression, rhs: Expression):
+        self.lhs: Expression = lhs
+        self.rhs: Expression = rhs
 
     def __repr__(self):
         return f'{self.lhs} = {self.rhs}'
@@ -93,7 +94,7 @@ class WordEquation:
     def peek(self) -> Tuple[Optional[Element], Optional[Element]]:
         return heads_or_none(self.lhs, self.rhs)
 
-    def copy_expressions(self) -> Tuple[WordExpression, WordExpression]:
+    def copy_expressions(self) -> Tuple[Expression, Expression]:
         return self.lhs[:], self.rhs[:]  # a faster way to make list copies
 
     def is_quadratic(self):
