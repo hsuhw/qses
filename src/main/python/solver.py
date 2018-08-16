@@ -1,9 +1,11 @@
-from typing import List, Tuple, Dict, Set, Optional
 from enum import Enum, unique, auto
 from functools import reduce
-from we import WordEquation, Element, is_var, is_del, not_del
-from prob import Problem, InvalidProblemError
+from typing import List, Tuple, Dict, Set, Optional
+
 from graphviz import Digraph
+from prob import Problem
+from we import WordEquation, Element, is_var, is_del, not_del
+
 
 @unique
 class Rewrite(Enum):
@@ -61,7 +63,11 @@ class SolveTree:
         else:
             self.node_relations[node] = {transform}
             return True
-    
+
+
+class InvalidProblemError(Exception):
+    pass
+
 
 class BasicSolver:
     def __init__(self, prob: Problem):
@@ -85,8 +91,7 @@ class BasicSolver:
             if self.resolve.add_node(we, new_we, Rewrite.lvar_be_empty, hh):
                 self.pending_checks.append(new_we)
         else:
-            print(f'Unexpected case reached in transform_with_emptiness: {lh},{rh}')
-            assert(False)
+            assert False
 
     def transform_both_var_case(self, we: WordEquation):
         lh, rh = hh = we.peek()
@@ -103,11 +108,13 @@ class BasicSolver:
         if self.resolve.add_node(we, case3, Rewrite.lvar_be_rvar, hh):
             self.pending_checks.append(case3)
 
-        case4 = we.replace_with(lh, [rh, lh]).remove_heads().remove_trivial_prefix()
+        case4 = we.replace_with(lh,
+                                [rh, lh]).remove_heads().remove_trivial_prefix()
         if self.resolve.add_node(we, case4, Rewrite.lvar_longer_var, hh):
             self.pending_checks.append(case4)
 
-        case5 = we.replace_with(rh, [lh, rh]).remove_heads().remove_trivial_prefix()
+        case5 = we.replace_with(rh,
+                                [lh, rh]).remove_heads().remove_trivial_prefix()
         if self.resolve.add_node(we, case5, Rewrite.rvar_longer_var, hh):
             self.pending_checks.append(case5)
 
@@ -122,7 +129,8 @@ class BasicSolver:
         if self.resolve.add_node(we, case2, Rewrite.rvar_be_char, hh):
             self.pending_checks.append(case2)
 
-        case3 = we.replace_with(rh, [lh, rh]).remove_heads().remove_trivial_prefix()
+        case3 = we.replace_with(rh,
+                                [lh, rh]).remove_heads().remove_trivial_prefix()
         if self.resolve.add_node(we, case3, Rewrite.rvar_longer_char, hh):
             self.pending_checks.append(case3)
 
@@ -137,15 +145,15 @@ class BasicSolver:
         if self.resolve.add_node(we, case2, Rewrite.lvar_be_char, hh):
             self.pending_checks.append(case2)
 
-        case3 = we.replace_with(lh, [rh, lh]).remove_heads().remove_trivial_prefix()
+        case3 = we.replace_with(lh,
+                                [rh, lh]).remove_heads().remove_trivial_prefix()
         if self.resolve.add_node(we, case3, Rewrite.lvar_longer_char, hh):
             self.pending_checks.append(case3)
 
     def solve(self) -> SolveTree:
         while self.pending_checks:
-            #curr_we = self.pending_checks.pop(0).remove_trivial_prefix()
             curr_we = self.pending_checks.pop(0)
-            if curr_we==self.resolve.success_end:
+            if curr_we == self.resolve.success_end:
                 pass
             elif curr_we.is_simply_unsolvable():
                 pass
@@ -158,9 +166,9 @@ class BasicSolver:
             elif curr_we.is_var_char_headed():
                 self.transform_var_char_case(curr_we)
             else:
-                print(curr_we)
-                #assert(False)
+                assert False
         return self.resolve
+
 
 # functions for output: pretty print, c program, graphviz, etc.
 def print_tree_plain(tree: SolveTree):
@@ -173,12 +181,16 @@ def print_tree_plain(tree: SolveTree):
         for t in tree.node_relations[k]:
             print(f'    {cnt}  {t})')
             cnt += 1
-#
+
+
 def print_word_equation_pretty(we: WordEquation) -> str:
-    left_str = ''.join([e.value if not_del(e) else '#' for e in we.lhs]) or '\"\"'
-    right_str = ''.join([e.value if not_del(e) else '#' for e in we.rhs]) or '\"\"'
+    left_str = ''.join(
+        [e.value if not_del(e) else '#' for e in we.lhs]) or '\"\"'
+    right_str = ''.join(
+        [e.value if not_del(e) else '#' for e in we.rhs]) or '\"\"'
     return f'{left_str}={right_str}'
-#
+
+
 def print_transform_rewrite_pretty(trans: Transform) -> str:
     if trans.record[0]:
         lval = trans.record[0].value
@@ -188,25 +200,26 @@ def print_transform_rewrite_pretty(trans: Transform) -> str:
         rval = trans.record[1].value
     else:
         rval = '\"\"'
-    if (trans.rewrite==Rewrite.lvar_be_empty):
+    if trans.rewrite == Rewrite.lvar_be_empty:
         return f'{lval}=\"\"'
-    elif (trans.rewrite==Rewrite.rvar_be_empty):
+    elif trans.rewrite == Rewrite.rvar_be_empty:
         return f'{rval}=\"\"'
-    elif (trans.rewrite==Rewrite.lvar_be_char):
+    elif trans.rewrite == Rewrite.lvar_be_char:
         return f'{lval}={rval}'
-    elif (trans.rewrite==Rewrite.rvar_be_char):
+    elif trans.rewrite == Rewrite.rvar_be_char:
         return f'{rval}={lval}'
-    elif (trans.rewrite==Rewrite.lvar_be_rvar):
+    elif trans.rewrite == Rewrite.lvar_be_rvar:
         return f'{lval}={rval}'
-    elif (trans.rewrite==Rewrite.lvar_longer_char):
+    elif trans.rewrite == Rewrite.lvar_longer_char:
         return f'{lval}={rval}{lval}'
-    elif (trans.rewrite==Rewrite.rvar_longer_char):
+    elif trans.rewrite == Rewrite.rvar_longer_char:
         return f'{rval}={lval}{rval}'
-    elif (trans.rewrite==Rewrite.lvar_longer_var):
+    elif trans.rewrite == Rewrite.lvar_longer_var:
         return f'{lval}={rval}{lval}'
-    elif (trans.rewrite==Rewrite.rvar_longer_var):
+    elif trans.rewrite == Rewrite.rvar_longer_var:
         return f'{rval}={lval}{rval}'
-#
+
+
 def print_tree_pretty(tree: SolveTree):
     print(f'word equation: {print_word_equation_pretty(tree.root)}')
     cnt_node = 1
@@ -215,25 +228,27 @@ def print_tree_pretty(tree: SolveTree):
         cnt_node += 1
         cnt = 1
         for t in tree.node_relations[k]:
-            print(f'    child{cnt}  {print_word_equation_pretty(t.source)}, {print_transform_rewrite_pretty(t)}')
+            print(
+                f'    child{cnt}  {print_word_equation_pretty(t.source)}, {print_transform_rewrite_pretty(t)}')
             cnt += 1
-#
+
+
 def print_tree_dot_pretty(tree: SolveTree):
-    we_str = print_word_equation_pretty(tree.root).replace('=','-')
-    #if not tree.has_solution():
+    we_str = print_word_equation_pretty(tree.root).replace('=', '-')
+    # if not tree.has_solution():
     #    print('no solution for word equation {we_str}')
 
-    node = SolveTree.success_end
-    dot = Digraph(name = we_str, comment = we_str)
+    dot = Digraph(name=we_str, comment=we_str)
     for k in tree.node_relations.keys():
         node_str = print_word_equation_pretty(k)
-        dot.node(node_str,node_str)
+        dot.node(node_str, node_str)
         for r in tree.node_relations[k]:
             next_node_str = print_word_equation_pretty(r.source)
-            dot.edge(node_str,next_node_str,print_transform_rewrite_pretty(r))
+            dot.edge(node_str, next_node_str, print_transform_rewrite_pretty(r))
     print(dot.source)
     dot.render()
-#
+
+
 def print_transform_rewrite_length(trans: Transform) -> str:
     if trans.record[0]:
         lval = trans.record[0].value
@@ -243,171 +258,171 @@ def print_transform_rewrite_length(trans: Transform) -> str:
         rval = trans.record[1].value
     else:
         rval = '\"\"'
-    if (trans.rewrite==Rewrite.lvar_be_empty):
+    if trans.rewrite == Rewrite.lvar_be_empty:
         return f'{lval}=0'
-    elif (trans.rewrite==Rewrite.rvar_be_empty):
+    elif trans.rewrite == Rewrite.rvar_be_empty:
         return f'{rval}=0'
-    elif (trans.rewrite==Rewrite.lvar_be_char):
+    elif trans.rewrite == Rewrite.lvar_be_char:
         return f'{lval}=1'
-    elif (trans.rewrite==Rewrite.rvar_be_char):
+    elif trans.rewrite == Rewrite.rvar_be_char:
         return f'{rval}=1'
-    elif (trans.rewrite==Rewrite.lvar_be_rvar):
+    elif trans.rewrite == Rewrite.lvar_be_rvar:
         return f'{lval}={rval}'
-    elif (trans.rewrite==Rewrite.lvar_longer_char):
+    elif trans.rewrite == Rewrite.lvar_longer_char:
         return f'{lval}={lval}+1'
-    elif (trans.rewrite==Rewrite.rvar_longer_char):
+    elif trans.rewrite == Rewrite.rvar_longer_char:
         return f'{rval}={rval}+1'
-    elif (trans.rewrite==Rewrite.lvar_longer_var):
+    elif trans.rewrite == Rewrite.lvar_longer_var:
         return f'{lval}={lval}+{rval}'
-    elif (trans.rewrite==Rewrite.rvar_longer_var):
+    elif trans.rewrite == Rewrite.rvar_longer_var:
         return f'{rval}={rval}+{lval}'
-#
+
+
 def print_tree_c_program(tree: SolveTree, type: str, lengthCons: List[str]):
     # check type validity
-    if (type!='interProc' and type!='UAutomizerC' and type!='EldaricaC'):
-        print('Type Error: type should be specified to \"interProc\" or \"UAutomizerC\" or \"EldaricaC\"')
+    if type != 'interProc' and type != 'UAutomizerC' and type != 'EldaricaC':
+        print(
+            'Type Error: type should be specified to \"interProc\" or \"UAutomizerC\" or \"EldaricaC\"')
         print('No c program output...')
         return
 
     # set some syntax keywords according to type
-    if (type=='interProc'):
-        progStart = 'begin'
-        progEnd = 'end'
-        whileStart = 'do'
-        whileEnd = 'done;'
-        ifStart = ' then'
-        ifEnd = 'endif;'
-        randomDecl = '      rdn = random;'
-    elif (type=='UAutomizerC' or type=='EldaricaC'):
-        progStart = ''
-        progEnd = '}'
-        whileStart = '{'
-        whileEnd = '}'
-        ifStart = ' {'
-        ifEnd = '}'
-        randomDecl = '      rdn =  __VERIFIER_nondet_int();'
-  
+    if type == 'interProc':
+        prog_start = 'begin'
+        prog_end = 'end'
+        while_start = 'do'
+        while_end = 'done;'
+        if_start = ' then'
+        if_end = 'endif;'
+        random_decl = '      rdn = random;'
+    elif type == 'UAutomizerC' or type == 'EldaricaC':
+        prog_start = ''
+        prog_end = '}'
+        while_start = '{'
+        while_end = '}'
+        if_start = ' {'
+        if_end = '}'
+        random_decl = '      rdn =  __VERIFIER_nondet_int();'
+
     # preprocessing, middle variables declaration
     trans = tree.node_relations
-    visitedNode = set()
-    node2Count = dict()
-    queuedNode = set()
-    vars = set()
+    visited_node = set()
+    node2_count = dict()
+    queued_node = set()
+    variables = set()
     for s in trans.keys():
         for t in s.variables():
-            vars.add(t)
-    nodeCount = 0
+            variables.add(t)
+    node_count = 0
 
     # variable declaration
-    if (type=='interProc'):
+    if type == 'interProc':
         print('var ')
-        for s in vars:
+        for s in variables:
             print(f'{s.value}: int,')
         print('rdn: int,')
         print('nodeNo: int,')
         print('reachFinal: int;')
-    elif (type=='UAutomizerC'):
+    elif type == 'UAutomizerC':
         print('extern void __VERIFIER_error() __attribute__ ((__noreturn__));')
         print('extern int __VERIFIER_nondet_int(void);')
         print()
         print('int main() {')
-        for s in vars:
+        for s in variables:
             print(f'  int {s.value};')
         print('  int rdn, nodeNo, reachFinal;')
-    elif (type=='EldaricaC'):
+    elif type == 'EldaricaC':
         print('int __VERIFIER_nondet_int(void) { int n=_; return n; }')
         print()
         print('int main() {')
-        for s in vars:
-            print('  int {s.value};')
+        for s in variables:
+            print(f'  int {s.value};')
         print('  int rdn, nodeNo, reachFinal;')
 
     # program begins
-    print(progStart)
-    print(f'  nodeNo = {nodeCount};')  # set nodeNo to zero (initial node)
+    print(prog_start)
+    print(f'  nodeNo = {node_count};')  # set nodeNo to zero (initial node)
     print('  reachFinal = 0;')
-    print(f'  while (reachFinal==0) {whileStart}')
+    print(f'  while (reachFinal==0) {while_start}')
     # start traverse from init node to final node
     init = SolveTree.success_end
     final = tree.root
-    queuedNode.add(init)
-    while(len(queuedNode)>0):
-        tmpNode = queuedNode.pop()
+    queued_node.add(init)
+    while len(queued_node) > 0:
+        tmp_node = queued_node.pop()
         # cases of node
-        if (tmpNode in visitedNode): # already processed: skip to next loop
+        if tmp_node in visited_node:  # already processed: skip to next loop
             continue
         else:
-            visitedNode.add(tmpNode)
+            visited_node.add(tmp_node)
 
-        if (tmpNode==init): # this is the initial node
-            print(f'    if (nodeNo=={nodeCount}) {ifStart}')  # nodeCount = 0 (the first loop)
-            print(f'    /* node = {print_word_equation_pretty(tmpNode)} */')
+        if tmp_node == init:  # this is the initial node
+            print(f'    if (nodeNo=={node_count}) {if_start}')
+            # node_count = 0 (the first loop)
+            print(f'    /* node = {print_word_equation_pretty(tmp_node)} */')
         else:
-            print(f'    if (nodeNo=={node2Count[tmpNode]}) {ifStart}')  # node2Count must has key "tmpNode"
-            print(f'    /* node = {print_word_equation_pretty(tmpNode)} */')
-            if (tmpNode==final): # this is the final node
+            print(f'    if (nodeNo=={node2_count[tmp_node]}) {if_start}')
+            # node2_count must has key "tmp_node"
+            print(f'    /* node = {print_word_equation_pretty(tmp_node)} */')
+            if tmp_node == final:  # this is the final node
                 print('      reachFinal=1;')
-                print(f'    {ifEnd}')
+                print(f'    {if_end}')
                 continue
 
-        tmpLabl = trans[tmpNode]
-        tmpLen  = len(tmpLabl)
+        tmp_labl = trans[tmp_node]
+        tmp_len = len(tmp_labl)
 
-        if (tmpLen>1):  # two or more parent nodes # currently not completed
-            print(randomDecl)
-            #print "      assume rdn>=1 and rdn <=" + str(tmpLen) + ';'
-            rdnCount = 1  # start from 1
-            for s in tmpLabl:
-                if (rdnCount==1):
-                    print(f'      if (rdn<={rdnCount}) {ifStart}')
-                elif (rdnCount==tmpLen):
-                    print(f'      if (rdn>={rdnCount}) {ifStart}')
+        if tmp_len > 1:  # two or more parent nodes # currently not completed
+            print(random_decl)
+            # print "      assume rdn>=1 and rdn <=" + str(tmp_len) + ';'
+            rdn_count = 1  # start from 1
+            for s in tmp_labl:
+                if rdn_count == 1:
+                    print(f'      if (rdn<={rdn_count}) {if_start}')
+                elif rdn_count == tmp_len:
+                    print(f'      if (rdn>={rdn_count}) {if_start}')
                 else:
-                    print(f'      if (rdn=={rdnCount}) {ifStart}')
+                    print(f'      if (rdn=={rdn_count}) {if_start}')
                 print(f'        {print_transform_rewrite_length(s)};')
-                print(f'        // {print_transform_rewrite_pretty(s)};')  #infomation for retrieving solution
-                if s.source in node2Count:
-                    print(f'        nodeNo={node2Count[s.source]};')
+                print(f'        // {print_transform_rewrite_pretty(s)};')
+                # information for retrieving solution
+                if s.source in node2_count:
+                    print(f'        nodeNo={node2_count[s.source]};')
                 else:
-                    nodeCount += 1
-                    print(f'        nodeNo={nodeCount};')
-                    node2Count[s.source]=nodeCount
-                queuedNode.add(s.source)
-                print(f'      {ifEnd}')
-                rdnCount += 1
+                    node_count += 1
+                    print(f'        nodeNo={node_count};')
+                    node2_count[s.source] = node_count
+                queued_node.add(s.source)
+                print(f'      {if_end}')
+                rdn_count += 1
         else:
-            for s in tmpLabl:
+            for s in tmp_labl:
                 print(f'      {print_transform_rewrite_length(s)};')
-                print(f'      // {print_transform_rewrite_pretty(s)};')  #infomation for retrieving solution
-                if s.source in node2Count:
-                    print(f'      nodeNo={node2Count[s.source]};')
+                print(f'      // {print_transform_rewrite_pretty(s)};')
+                # information for retrieving solution
+                if s.source in node2_count:
+                    print(f'      nodeNo={node2_count[s.source]};')
                 else:
-                    nodeCount += 1
-                    print(f'      nodeNo={nodeCount};')
-                    node2Count[s.source]=nodeCount
-                queuedNode.add(s.source)
+                    node_count += 1
+                    print(f'      nodeNo={node_count};')
+                    node2_count[s.source] = node_count
+                queued_node.add(s.source)
 
-        print(f'    {ifEnd}')
-    print(f'  {whileEnd}')
+        print(f'    {if_end}')
+    print(f'  {while_end}')
     if lengthCons:
-        if len(lengthCons)==1:
+        if len(lengthCons) == 1:
             lc = lengthCons[0]
-        else: # multiple length constraints, take conjunction
+        else:  # multiple length constraints, take conjunction
             lc = ' && '.join(lengthCons)
-    if (type=="UAutomizerC" and lengthCons): # length constraint (for UAutomizer)
+    if type == "UAutomizerC" and lengthCons:
+        # length constraint (for UAutomizer)
         print(f'  if ({lc}) {{ //length constraint: {lengthCons}')
         print('    ERROR: __VERIFIER_error();')
         print('  }')
         print('  else {')
         print('    return 0;')
         print('  }')
-    if (type=="EldaricaC" and lengthCons): # length constraint (for Eldarica)
+    if type == "EldaricaC" and lengthCons:  # length constraint (for Eldarica)
         print(f'  assert (!({lc})); //length constraint: {lengthCons}')
-    print(progEnd)
-#
-
-
-
-#
-
-
+    print(prog_end)

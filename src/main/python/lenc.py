@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Tuple, Union
 
 
 class Element:
@@ -37,8 +37,31 @@ class Constant(Element):
 Expression = List[Element]
 
 
+def reduce_constants(expr: Expression) -> Expression:
+    """ Constant (if any) will be the last element. """
+    result = []
+    acc = 0
+    for e in expr:
+        if isinstance(e, Constant):
+            acc += e.value
+        else:
+            result.append(e)
+    result.append(Constant(acc)) if acc != 0 else None
+    return result
+
+
+def simplify_equation(lhs: Expression, rhs: Expression) \
+        -> Tuple[Expression, Expression]:
+    le = reduce_constants(lhs)
+    re = reduce_constants(rhs)
+    if isinstance(le[-1], Constant) and le[-1].value < 0:
+        re.append(le.pop().opposite())
+    return le, re
+
+
 class LengthConstraint:
     def __init__(self, lhs: Expression, rhs: Expression):
+        lhs, rhs = simplify_equation(lhs, rhs)
         self.lhs: Expression = lhs
         self.rhs: Expression = rhs
 

@@ -1,3 +1,5 @@
+import lenc
+
 from typing import List, Tuple, Optional
 from collections import Counter
 
@@ -18,17 +20,17 @@ class Element:
         return hash(str(self))
 
     def length(self):  # TODO: do it symbolically or concretely?
-        return False
+        pass
 
 
 class Character(Element):
     def length(self):
-        return 1
+        return lenc.Constant(1)
 
 
 class Variable(Element):
     def length(self):
-        return f'{self.value}_len_'
+        return lenc.Variable(f'{self.value}_len_')
 
 
 class Delimiter(Element):
@@ -36,7 +38,7 @@ class Delimiter(Element):
         super().__init__('')
 
     def length(self):
-        return 1
+        return lenc.Constant(1)
 
 
 DELIMITER = Delimiter()
