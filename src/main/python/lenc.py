@@ -52,11 +52,10 @@ def reduce_constants(expr: Expression) -> Expression:
 
 def simplify_equation(lhs: Expression, rhs: Expression) \
         -> Tuple[Expression, Expression]:
-    le = reduce_constants(lhs)
-    re = reduce_constants(rhs)
-    if isinstance(le[-1], Constant) and le[-1].value < 0:
+    le, re = reduce_constants(lhs), rhs
+    if isinstance(le[-1], Constant):
         re.append(le.pop().opposite())
-    return le, re
+    return le, reduce_constants(re)
 
 
 class LengthConstraint:
