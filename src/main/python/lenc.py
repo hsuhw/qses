@@ -47,13 +47,13 @@ def reduce_constants(expr: Expression) -> Expression:
         else:
             result.append(e)
     result.append(Constant(acc)) if acc != 0 else None
-    return result
+    return result if result else [Constant(0)]
 
 
 def simplify_equation(lhs: Expression, rhs: Expression) \
         -> Tuple[Expression, Expression]:
     le, re = reduce_constants(lhs), rhs
-    if isinstance(le[-1], Constant):
+    if isinstance(le[-1], Constant) and len(le) > 1:
         re.append(le.pop().opposite())
     return le, reduce_constants(re)
 

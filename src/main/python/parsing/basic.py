@@ -196,8 +196,6 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
     def handle_string_length(self, term: TermContext,
                              operands: TypedOperands) -> TypedBuiltTerm:
         assert len(operands) == 1
-        if len(operands[0][0]) != 1:
-            raise prob.InvalidConstructError()
         ops: List[we.Expression] = self.set_operands_type(term, operands,
                                                           ValueType.string)
         return [e.length() for str_exp in ops for e in str_exp], ValueType.int
