@@ -1,0 +1,16 @@
+(declare-fun PCTEMP_LHS_1 () String)
+(declare-fun var_0xINPUT_10316 () String)
+
+;>> Arithmetic Constraints
+(assert(= (str.len var_0xINPUT_10316) (str.len PCTEMP_LHS_1)))
+
+;>> String Constraints
+(assert(= PCTEMP_LHS_1 var_0xINPUT_10316))
+
+;>> Regular Constraints
+(assert(str.in.re PCTEMP_LHS_1 ( str.to.re "%" )))
+
+;>> Other Constraints
+
+(check-sat)
+(get-model)

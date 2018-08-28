@@ -1,0 +1,19 @@
+;(declare-fun T_1 () Bool)
+;(declare-fun T_2 () Bool)
+(declare-fun var_0xINPUT_188044 () String)
+
+;>> Arithmetic Constraints
+;(assert(= T_1 ( = var_0xINPUT_188044 "BOZ787bhex" )))
+;(assert(= T_2 ( not T_1 )))
+
+(assert(=  ( not ( = var_0xINPUT_188044 "BOZ787bhex" ) ) ( not ( = var_0xINPUT_188044 "BOZ787bhex" ) )))
+
+;>> String Constraints
+(assert(= var_0xINPUT_188044 "BOZ787bhex"))
+
+;>> Regular Constraints
+;>> Other Constraints
+
+(check-sat)
+
+(get-model)

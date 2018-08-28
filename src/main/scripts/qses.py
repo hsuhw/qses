@@ -4,7 +4,6 @@ import parsing.basic
 
 
 def main(argv):
-    print(sys.path)
     parsing.basic.parse_file(argv[1])
 
 

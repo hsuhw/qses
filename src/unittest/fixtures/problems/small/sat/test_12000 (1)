@@ -1,0 +1,17 @@
+(declare-fun T_1 () Bool)
+(declare-fun T_2 () Bool)
+(declare-fun var_0xINPUT_99673 () String)
+
+;>> Arithmetic Constraints
+(assert(= 5 (str.len var_0xINPUT_99673)))
+(assert(= T_1 ( not ( = "file:" var_0xINPUT_99673 ) )))
+(assert(= T_2 ( not T_1 )))
+
+;>> String Constraints
+(assert(= "file:" var_0xINPUT_99673))
+
+;>> Regular Constraints
+;>> Other Constraints
+
+(check-sat)
+(get-model)

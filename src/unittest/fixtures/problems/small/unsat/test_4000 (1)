@@ -1,0 +1,27 @@
+;(declare-fun T_1 () Bool)
+;(declare-fun T_2 () Bool)
+;(declare-fun T_3 () Bool)
+;(declare-fun T_4 () Bool)
+(declare-fun var_0xINPUT_201539 () String)
+
+;>> Arithmetic Constraints
+(assert(= 10 (str.len var_0xINPUT_201539)))
+;(assert(= T_1 ( not ( = "" var_0xINPUT_201539 ) )))
+;(assert(= T_2 ( not ( = "" var_0xINPUT_201539 ) )))
+;(assert(= T_3 ( not ( = "4PH2ujcENG" var_0xINPUT_201539 ) )))
+;(assert(= T_4 ( not T_3 )))
+
+(assert ( = "4PH2ujcENG" var_0xINPUT_201539 ) )
+(assert ( = "4PH2ujcENG" var_0xINPUT_201539 ) )
+
+;>> String Constraints
+(assert(= "" var_0xINPUT_201539))
+;(assert(not(= "" var_0xINPUT_201539)))
+(assert(= "4PH2ujcENG" var_0xINPUT_201539))
+
+;>> Regular Constraints
+;>> Other Constraints
+
+(check-sat)
+
+(get-model)

@@ -18,7 +18,8 @@ TermContext = SMTLIB26Parser.TermContext
 
 def term_operator(term: TermContext) -> Optional[str]:
     try:
-        return term.qual_identifier().identifier().symbol().SIMPLE_SYMBOL()
+        symbol = term.qual_identifier().identifier().symbol()
+        return symbol.SIMPLE_SYMBOL().getText()
     except AttributeError:
         return None
 
@@ -142,15 +143,17 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
     def handle_atomic_term(self, term: TermContext) -> TypedBuiltTerm:
         if term.spec_constant():
             if term.spec_constant().NUMERAL():
-                num = int(term.spec_constant().NUMERAL())
+                num = int(term.spec_constant().NUMERAL().getText())
                 return [lenc.Constant(num)], ValueType.int
             elif term.spec_constant().STRING():
-                chars = string_to_characters(term.spec_constant().STRING())
+                string = term.spec_constant().STRING().getText()
+                chars = string_to_characters(string)
                 return chars, ValueType.string
             # other types of `spec_constant` not handled
         elif term.qual_identifier():
             assert len(term.term()) == 0
-            name = term.qual_identifier().identifier().symbol().SIMPLE_SYMBOL()
+            symbol = term.qual_identifier().identifier().symbol()
+            name = symbol.SIMPLE_SYMBOL().getText()
             known_type = self.problem.variables.get(name)
             if known_type is ValueType.int:
                 return [lenc.Variable(name)], ValueType.int
@@ -269,7 +272,7 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
         if ctx.TOKEN_CMD_DECLARE_FUN():
             self.declare_variable(ctx.symbol(0), ctx.sort(0))
         elif ctx.TOKEN_CMD_ASSERT():
-            pass
+            self.handle_term(ctx.term(0))
 
 
 def parse_file(file_path: str, syntax: Syntax = Z3STR3_SYNTAX):
