@@ -55,7 +55,7 @@ def is_var(e: Element):
 
 
 def not_var(e: Element):
-    return not isinstance(e, Variable)
+    return not is_var(e)
 
 
 def is_char(e: Element):
@@ -63,7 +63,7 @@ def is_char(e: Element):
 
 
 def not_char(e: Element):
-    return not isinstance(e, Character)
+    return not is_char(e)
 
 
 def is_del(e: Element):
@@ -71,7 +71,7 @@ def is_del(e: Element):
 
 
 def not_del(e: Element):
-    return e is not DELIMITER
+    return not is_del(e)
 
 
 class WordEquation:
