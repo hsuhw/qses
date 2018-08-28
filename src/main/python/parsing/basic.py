@@ -146,7 +146,7 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
                 num = int(term.spec_constant().NUMERAL().getText())
                 return [lenc.Constant(num)], ValueType.int
             elif term.spec_constant().STRING():
-                string = term.spec_constant().STRING().getText()
+                string = term.spec_constant().STRING().getText()[1:-1]
                 chars = string_to_characters(string)
                 return chars, ValueType.string
             # other types of `spec_constant` not handled
