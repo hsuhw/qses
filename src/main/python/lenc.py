@@ -2,27 +2,43 @@ from typing import List, Tuple, Union
 
 
 class Element:
-    def __init__(self, value: Union[str, int], negative: bool = False):
+    def __init__(self, value: Union[str, int], coefficient: int = 1):
+        assert coefficient != 0
         self.value: Union[str, int] = value
-        self.is_negative: bool = negative
+        self.coefficient: int = coefficient
 
     def __repr__(self):
-        sign = '-' if self.is_negative else ''
-        return f'{self.__class__.__name__[0]}({sign}{self.value})'
+        c = self.coefficient
+        if self.coefficient == 1:
+            c = ''
+        elif self.coefficient == -1:
+            c = '-'
+        return f'{c}{self.__class__.__name__[0]}({self.value})'
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
             return (self.value == other.value and
-                    self.is_negative == other.is_negative)
+                    self.coefficient == other.coefficient)
 
     def opposite(self):
-        return self.__class__(self.value, not self.is_negative)
+        pass
+
+    def multiply(self, multiplier: int):
+        pass
 
 
 class Variable(Element):
-    def __init__(self, value: Union[str, int], negative: bool = False):
+    def __init__(self, value: Union[str, int], coefficient: int = 1):
         assert isinstance(value, str)
-        super().__init__(value, negative)
+        super().__init__(value, coefficient)
+
+    def opposite(self):
+        return self.__class__(self.value, -self.coefficient)
+
+    def multiply(self, multiplier: int):
+        if multiplier == 0:
+            return Constant(0)
+        return self.__class__(self.value, self.coefficient * multiplier)
 
 
 class Constant(Element):
@@ -33,8 +49,35 @@ class Constant(Element):
     def opposite(self):
         return self.__class__(-self.value)
 
+    def multiply(self, multiplier: int):
+        return self.__class__(self.value * multiplier)
+
 
 Expression = List[Element]
+
+
+def is_var(e: Element):
+    return isinstance(e, Variable)
+
+
+def not_var(e: Element):
+    return not is_var(e)
+
+
+def is_const(e: Element):
+    return isinstance(e, Constant)
+
+
+def not_const(e: Element):
+    return not is_const(e)
+
+
+def is_const_expr(e: Expression):
+    return len(e) == 1 and isinstance(e[0], Constant)
+
+
+def not_const_expr(e: Expression):
+    return not is_const_expr(e)
 
 
 def reduce_constants(expr: Expression) -> Expression:

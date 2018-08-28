@@ -26,12 +26,12 @@ def term_operator(term: TermContext) -> Optional[str]:
 
 class Syntax:
     @classmethod
-    def is_disjunction(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'or'
-
-    @classmethod
     def is_conjunction(cls, term: SMTLIB26Parser.TermContext):
         return term_operator(term) == 'and'
+
+    @classmethod
+    def is_disjunction(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == 'or'
 
     @classmethod
     def is_negation(cls, term: SMTLIB26Parser.TermContext):
@@ -42,12 +42,16 @@ class Syntax:
         return term_operator(term) == '='
 
     @classmethod
+    def is_plus(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == '+'
+
+    @classmethod
     def is_minus(cls, term: SMTLIB26Parser.TermContext):
         return term_operator(term) == '-'
 
     @classmethod
-    def is_plus(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == '+'
+    def is_times(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == '*'
 
     @classmethod
     def is_string_concat(cls, term: SMTLIB26Parser.TermContext):
@@ -120,18 +124,18 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
                           tgt_type: ValueType) -> Operands:
         assert tgt_type is ValueType.int or tgt_type is ValueType.string
         result = []
-        for index, (built_term, typ) in enumerate(operands):
+        for index, (operand, typ) in enumerate(operands):
             if typ is ValueType.unknown:
-                assert isinstance(built_term, YetKnown)
-                self.problem.declare_variable(built_term, tgt_type)
+                assert isinstance(operand, YetKnown)
+                self.problem.declare_variable(operand, tgt_type)
                 if tgt_type is ValueType.int:
-                    result.append(([lenc.Variable(built_term)], tgt_type))
+                    result.append(([lenc.Variable(operand)], tgt_type))
                 elif tgt_type is ValueType.string:
-                    result.append(([we.Variable(built_term)], tgt_type))
+                    result.append(([we.Variable(operand)], tgt_type))
             elif typ is not tgt_type:
                 raise prob.InvalidTypeError(self.src_pos(term.term(index)))
             else:
-                result.append((built_term, tgt_type))
+                result.append((operand, tgt_type))
         return without_type(result)
 
     def declare_variable(self, symbol: SMTLIB26Parser.SymbolContext,
@@ -209,6 +213,7 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
         ops = self.set_operands_type(term, operands, ValueType.int)
         for index in range(1, len(ops)):
             constraint = LengthConstraint(ops[index - 1], ops[index])
+            print(constraint)
             self.problem.add_length_constraint(constraint)  # add assertion
         return ops, ValueType.bool  # TODO: lack operator info
 
@@ -232,6 +237,20 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
                                                             ValueType.int)
         result = [e for e in ops[0]] + [e.opposite() for e in ops[1]]
         return result, ValueType.int
+
+    def handle_int_times(self, term: SMTLIB26Parser.TermContext,
+                         operands: TypedOperands) -> TypedBuiltTerm:
+        assert len(operands) == 2
+        ops: List[lenc.Expression] = self.set_operands_type(term, operands,
+                                                            ValueType.int)
+        op1: lenc.Expression = lenc.reduce_constants(ops[0])
+        op2: lenc.Expression = lenc.reduce_constants(ops[1])
+        if lenc.is_const_expr(op1):
+            return [e.multiply(op1[0].value) for e in op2], ValueType.int
+        elif lenc.is_const_expr(op2):
+            return [e.multiply(op2[0].value) for e in op1], ValueType.int
+        else:
+            raise prob.InvalidConstructError(self.src_pos(term.term(1)))
 
     def handle_term(self, term: TermContext) -> TypedBuiltTerm:
         if not term.OPEN_PAR():
@@ -259,6 +278,8 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
                     return self.handle_int_plus(term, operands)
                 elif self.syntax.is_minus(term) and operand_num == 2:
                     return self.handle_int_minus(term, operands)
+                elif self.syntax.is_times(term) and operand_num == 2:
+                    return self.handle_int_times(term, operands)
                 elif self.syntax.is_string_concat(term):
                     return self.handle_string_concat(term, operands)
         raise prob.UnsupportedConstructError(self.src_pos(term))
