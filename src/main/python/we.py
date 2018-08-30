@@ -1,6 +1,6 @@
 import lenc
 
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Set, Optional
 from collections import Counter
 
 
@@ -20,7 +20,7 @@ class Element:
         return hash(str(self))
 
     def length(self):  # TODO: do it symbolically or concretely?
-        pass
+        return lenc.Variable(0)
 
 
 class Character(Element):
@@ -30,7 +30,7 @@ class Character(Element):
 
 class Variable(Element):
     def length(self):
-        return lenc.Variable(f'{self.value}_len_')
+        return lenc.Variable(f'xx_{self.value}_len_')
 
 
 class Delimiter(Element):
@@ -75,12 +75,13 @@ def not_del(e: Element):
 
 
 class WordEquation:
-    def __init__(self, lhs: Expression, rhs: Expression):
+    def __init__(self, lhs: Expression, rhs: Expression, neg: bool = False):
         self.lhs: Expression = lhs
         self.rhs: Expression = rhs
+        self.negation: bool = neg
 
     def __repr__(self):
-        return f'{self.lhs} = {self.rhs}'
+        return f'{self.lhs} {"!=" if self.negation else "=="} {self.rhs}'
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -90,8 +91,11 @@ class WordEquation:
     def __hash__(self):
         return hash(str(self))
 
-    def variables(self) -> List[Variable]:
-        return [e for e in self.lhs + self.rhs if isinstance(e, Variable)]
+    def variables(self) -> Set[Variable]:
+        return {e for e in self.lhs + self.rhs if isinstance(e, Variable)}
+
+    def negate(self) -> 'WordEquation':
+        return self.__class__(self.lhs, self.rhs, not self.negation)
 
     def peek(self) -> Tuple[Optional[Element], Optional[Element]]:
         return heads_or_none(self.lhs, self.rhs)
@@ -106,7 +110,7 @@ class WordEquation:
                 return False
         return True
 
-    def is_simply_unsolvable(self):
+    def is_simply_unequal(self):
         lh, rh = self.peek()
         return ((is_char(lh) and is_char(rh) and lh != rh) or
                 (not lh and rh and not_var(rh)) or
@@ -139,16 +143,6 @@ class WordEquation:
     def remove_heads(self) -> 'WordEquation':
         return WordEquation(self.lhs[1:], self.rhs[1:])
 
-    def remove_trivial_prefix(self) -> 'WordEquation':
-        lhs, rhs = self.copy_expressions()
-        lh, rh = heads_or_none(lhs, rhs)
-        while ((is_char(lh) and is_char(rh) and lh == rh) or
-               (is_del(lh) and is_del(rh))):
-            lhs.pop(0)
-            rhs.pop(0)
-            lh, rh = heads_or_none(lhs, rhs)
-        return WordEquation(lhs, rhs)
-
     def remove_left_head_from_all(self) -> 'WordEquation':
         lh = self.lhs[0]
         return WordEquation([e for e in self.lhs if e != lh],
@@ -158,6 +152,16 @@ class WordEquation:
         rh = self.rhs[0]
         return WordEquation([e for e in self.lhs if e != rh],
                             [e for e in self.rhs if e != rh])
+
+    def trim_prefix(self) -> 'WordEquation':
+        lhs, rhs = self.copy_expressions()
+        lh, rh = heads_or_none(lhs, rhs)
+        while ((is_char(lh) and is_char(rh) and lh == rh) or
+               (is_del(lh) and is_del(rh))):
+            lhs.pop(0)
+            rhs.pop(0)
+            lh, rh = heads_or_none(lhs, rhs)
+        return WordEquation(lhs, rhs)
 
     def replace(self, tgt: Element, subst: Element) -> 'WordEquation':
         return WordEquation([(subst if e == tgt else e) for e in self.lhs],

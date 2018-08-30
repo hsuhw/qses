@@ -1,4 +1,5 @@
-from typing import List, Tuple, Union
+from enum import Enum, unique
+from typing import List, Tuple, Set, Union
 
 
 class Element:
@@ -21,7 +22,7 @@ class Element:
                     self.coefficient == other.coefficient)
 
     def opposite(self):
-        pass
+        return self.__class__('undefined')
 
     def multiply(self, multiplier: int):
         pass
@@ -80,6 +81,26 @@ def not_const_expr(e: Expression):
     return not is_const_expr(e)
 
 
+@unique
+class Relation(Enum):
+    equal = '=='
+    unequal = '!='
+    greater = '>'
+    greater_equal = '>='
+    less = '<'
+    less_equal = '<='
+
+
+negation = {
+    Relation.equal: Relation.unequal,
+    Relation.unequal: Relation.equal,
+    Relation.greater: Relation.less_equal,
+    Relation.greater_equal: Relation.less,
+    Relation.less: Relation.greater_equal,
+    Relation.less_equal: Relation.greater,
+}
+
+
 def reduce_constants(expr: Expression) -> Expression:
     """ Constant (if any) will be the last element. """
     result = []
@@ -102,13 +123,18 @@ def simplify_equation(lhs: Expression, rhs: Expression) \
 
 
 class LengthConstraint:
-    def __init__(self, lhs: Expression, rhs: Expression):
+    def __init__(self, lhs: Expression, rhs: Expression,
+                 rel: Relation = Relation.equal):
         lhs, rhs = simplify_equation(lhs, rhs)
         self.lhs: Expression = lhs
         self.rhs: Expression = rhs
+        self.relation: Relation = rel
 
     def __repr__(self):
-        return f'{self.lhs} = {self.rhs}'
+        return f'{self.lhs} {self.relation.value} {self.rhs}'
 
-    def variables(self) -> List[Variable]:
-        return [e for e in self.lhs + self.rhs if isinstance(e, Variable)]
+    def variables(self) -> Set[Variable]:
+        return {e for e in self.lhs + self.rhs if isinstance(e, Variable)}
+
+    def negate(self) -> 'LengthConstraint':
+        return self.__class__(self.lhs, self.rhs, negation[self.relation])

@@ -83,11 +83,11 @@ class BasicSolver:
     def transform_with_emptiness(self, we: WordEquation):
         lh, rh = hh = we.peek()
         if (not lh or is_del(lh)) and rh and is_var(rh):
-            new_we = we.remove_right_head_from_all().remove_trivial_prefix()
+            new_we = we.remove_right_head_from_all().trim_prefix()
             if self.resolve.add_node(we, new_we, Rewrite.rvar_be_empty, hh):
                 self.pending_checks.append(new_we)
         elif (not rh or is_del(rh)) and lh and is_var(lh):
-            new_we = we.remove_left_head_from_all().remove_trivial_prefix()
+            new_we = we.remove_left_head_from_all().trim_prefix()
             if self.resolve.add_node(we, new_we, Rewrite.lvar_be_empty, hh):
                 self.pending_checks.append(new_we)
         else:
@@ -96,57 +96,53 @@ class BasicSolver:
     def transform_both_var_case(self, we: WordEquation):
         lh, rh = hh = we.peek()
 
-        case1 = we.remove_left_head_from_all().remove_trivial_prefix()
+        case1 = we.remove_left_head_from_all().trim_prefix()
         if self.resolve.add_node(we, case1, Rewrite.lvar_be_empty, hh):
             self.pending_checks.append(case1)
 
-        case2 = we.remove_right_head_from_all().remove_trivial_prefix()
+        case2 = we.remove_right_head_from_all().trim_prefix()
         if self.resolve.add_node(we, case2, Rewrite.rvar_be_empty, hh):
             self.pending_checks.append(case2)
 
-        case3 = we.replace(lh, rh).remove_heads().remove_trivial_prefix()
+        case3 = we.replace(lh, rh).remove_heads().trim_prefix()
         if self.resolve.add_node(we, case3, Rewrite.lvar_be_rvar, hh):
             self.pending_checks.append(case3)
 
-        case4 = we.replace_with(lh,
-                                [rh, lh]).remove_heads().remove_trivial_prefix()
+        case4 = we.replace_with(lh, [rh, lh]).remove_heads().trim_prefix()
         if self.resolve.add_node(we, case4, Rewrite.lvar_longer_var, hh):
             self.pending_checks.append(case4)
 
-        case5 = we.replace_with(rh,
-                                [lh, rh]).remove_heads().remove_trivial_prefix()
+        case5 = we.replace_with(rh, [lh, rh]).remove_heads().trim_prefix()
         if self.resolve.add_node(we, case5, Rewrite.rvar_longer_var, hh):
             self.pending_checks.append(case5)
 
     def transform_char_var_case(self, we: WordEquation):
         lh, rh = hh = we.peek()
 
-        case1 = we.remove_right_head_from_all().remove_trivial_prefix()
+        case1 = we.remove_right_head_from_all().trim_prefix()
         if self.resolve.add_node(we, case1, Rewrite.rvar_be_empty, hh):
             self.pending_checks.append(case1)
 
-        case2 = we.replace(rh, lh).remove_heads().remove_trivial_prefix()
+        case2 = we.replace(rh, lh).remove_heads().trim_prefix()
         if self.resolve.add_node(we, case2, Rewrite.rvar_be_char, hh):
             self.pending_checks.append(case2)
 
-        case3 = we.replace_with(rh,
-                                [lh, rh]).remove_heads().remove_trivial_prefix()
+        case3 = we.replace_with(rh, [lh, rh]).remove_heads().trim_prefix()
         if self.resolve.add_node(we, case3, Rewrite.rvar_longer_char, hh):
             self.pending_checks.append(case3)
 
     def transform_var_char_case(self, we: WordEquation):
         lh, rh = hh = we.peek()
 
-        case1 = we.remove_left_head_from_all().remove_trivial_prefix()
+        case1 = we.remove_left_head_from_all().trim_prefix()
         if self.resolve.add_node(we, case1, Rewrite.lvar_be_empty, hh):
             self.pending_checks.append(case1)
 
-        case2 = we.replace(lh, rh).remove_heads().remove_trivial_prefix()
+        case2 = we.replace(lh, rh).remove_heads().trim_prefix()
         if self.resolve.add_node(we, case2, Rewrite.lvar_be_char, hh):
             self.pending_checks.append(case2)
 
-        case3 = we.replace_with(lh,
-                                [rh, lh]).remove_heads().remove_trivial_prefix()
+        case3 = we.replace_with(lh, [rh, lh]).remove_heads().trim_prefix()
         if self.resolve.add_node(we, case3, Rewrite.lvar_longer_char, hh):
             self.pending_checks.append(case3)
 
@@ -155,7 +151,7 @@ class BasicSolver:
             curr_we = self.pending_checks.pop(0)
             if curr_we == self.resolve.success_end:
                 pass
-            elif curr_we.is_simply_unsolvable():
+            elif curr_we.is_simply_unequal():
                 pass
             elif curr_we.has_emptiness():
                 self.transform_with_emptiness(curr_we)
