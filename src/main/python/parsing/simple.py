@@ -1,17 +1,15 @@
 import re
 
-import we
-
 from typing import List
 
 from prob import Problem, ValueType
-from we import WordEquation
+from we import WordEquation, StrVariable, Character, StrExpression
 
 
 def string_to_elements(ss):
     ret = []
     for s in list(ss):
-        ret.append(we.Character(s))
+        ret.append(Character(s))
     return ret
 
 
@@ -43,13 +41,13 @@ def is_variable(s):
     return re.match(r"^[_$a-zA-z].*", s)
 
 
-def process_elements(str_list: List[str]) -> List[we.Element]:
+def process_elements(str_list: List[str]) -> StrExpression:
     elem_list = []
     for s in str_list:
         if is_string(s):
             elem_list += string_to_elements(s[1:len(s) - 1])
         elif is_variable(s):
-            elem_list.append(we.Variable(s))
+            elem_list.append(StrVariable(s))
         else:
             assert False
     return elem_list

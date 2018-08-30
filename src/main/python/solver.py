@@ -4,7 +4,7 @@ from typing import List, Tuple, Dict, Set, Optional
 
 from graphviz import Digraph
 from prob import Problem
-from we import WordEquation, Element, is_var, is_del, not_del
+from we import WordEquation, StrElement, is_var, is_del, not_del
 
 
 @unique
@@ -20,9 +20,12 @@ class Rewrite(Enum):
     rvar_longer_var = auto()
 
 
+TransformRecord = Tuple[Optional[StrElement], Optional[StrElement]]
+
+
 class Transform:
     def __init__(self, source: WordEquation, rewrite: Rewrite,
-                 record: Tuple[Optional[Element], Optional[Element]]):
+                 record: TransformRecord):
         self.source: WordEquation = source
         self.rewrite: Rewrite = rewrite
         self.record = record
@@ -55,7 +58,7 @@ class SolveTree:
         return self.has_node(SolveTree.success_end)
 
     def add_node(self, src: WordEquation, node: WordEquation, rewrite: Rewrite,
-                 record: Tuple[Optional[Element], Optional[Element]]) -> bool:
+                 record: TransformRecord) -> bool:
         transform = Transform(src, rewrite, record)
         if self.has_node(node):
             self.node_relations[node].add(transform)

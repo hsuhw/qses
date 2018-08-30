@@ -1,11 +1,9 @@
-import we
-
 from enum import Enum, unique, auto
 from typing import Dict, List
 
 from lenc import LengthConstraint
 from regc import RegularConstraint
-from we import WordEquation
+from we import WordEquation, StrVariable
 
 
 @unique
@@ -49,7 +47,7 @@ class Problem:
             raise MultiDeclarationError(f'variable: {name}')
         self.variables[name] = typ
         if typ is ValueType.string:
-            length_var_name = we.Variable(name).length().value
+            length_var_name = StrVariable(name).length().value
             self.declare_variable(length_var_name, ValueType.int)
 
     def new_variable(self, typ: ValueType) -> str:

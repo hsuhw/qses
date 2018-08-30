@@ -1,10 +1,10 @@
-import lenc
-
 from typing import List, Tuple, Set, Optional
 from collections import Counter
 
+from lenc import IntConstant, IntVariable
 
-class Element:
+
+class StrElement:
     def __init__(self, value: str):
         self.value: str = value
 
@@ -20,64 +20,66 @@ class Element:
         return hash(str(self))
 
     def length(self):  # TODO: do it symbolically or concretely?
-        return lenc.Variable(0)
+        return IntVariable(0)
 
 
-class Character(Element):
+class Character(StrElement):
     def length(self):
-        return lenc.Constant(1)
+        return IntConstant(1)
 
 
-class Variable(Element):
+class StrVariable(StrElement):
     def length(self):
-        return lenc.Variable(f'xx_{self.value}_len_')
+        return IntVariable(f'xx_{self.value}_len_')
 
 
-class Delimiter(Element):
+class Delimiter(StrElement):
     def __init__(self):
         super().__init__('')
 
     def length(self):
-        return lenc.Constant(1)
+        return IntConstant(1)
 
 
 DELIMITER = Delimiter()
-Expression = List[Element]
+StrExpression = List[StrElement]
+HeadPair = Tuple[Optional[StrElement], Optional[StrElement]]
 
 
-def heads_or_none(lhs, rhs) -> Tuple[Optional[Element], Optional[Element]]:
+def heads_or_none(lhs, rhs) -> HeadPair:
     [lh], [rh] = lhs[:1] or [None], rhs[:1] or [None]
     return lh, rh
 
 
-def is_var(e: Element):
-    return isinstance(e, Variable)
+def is_var(e: StrElement):
+    return isinstance(e, StrVariable)
 
 
-def not_var(e: Element):
+def not_var(e: StrElement):
     return not is_var(e)
 
 
-def is_char(e: Element):
+def is_char(e: StrElement):
     return isinstance(e, Character)
 
 
-def not_char(e: Element):
+def not_char(e: StrElement):
     return not is_char(e)
 
 
-def is_del(e: Element):
+def is_del(e: StrElement):
     return e is DELIMITER
 
 
-def not_del(e: Element):
+def not_del(e: StrElement):
     return not is_del(e)
 
 
 class WordEquation:
-    def __init__(self, lhs: Expression, rhs: Expression, neg: bool = False):
-        self.lhs: Expression = lhs
-        self.rhs: Expression = rhs
+    def __init__(self, lhs: StrExpression, rhs: StrExpression,
+                 neg: bool = False):
+        self.lhs: StrExpression = lhs
+        self.rhs: StrExpression = rhs
         self.negation: bool = neg
 
     def __repr__(self):
@@ -91,16 +93,16 @@ class WordEquation:
     def __hash__(self):
         return hash(str(self))
 
-    def variables(self) -> Set[Variable]:
-        return {e for e in self.lhs + self.rhs if isinstance(e, Variable)}
+    def variables(self) -> Set[StrVariable]:
+        return {e for e in self.lhs + self.rhs if isinstance(e, StrVariable)}
 
     def negate(self) -> 'WordEquation':
         return self.__class__(self.lhs, self.rhs, not self.negation)
 
-    def peek(self) -> Tuple[Optional[Element], Optional[Element]]:
+    def peek(self) -> HeadPair:
         return heads_or_none(self.lhs, self.rhs)
 
-    def copy_expressions(self) -> Tuple[Expression, Expression]:
+    def copy_expressions(self) -> Tuple[StrExpression, StrExpression]:
         return self.lhs[:], self.rhs[:]  # a faster way to make list copies
 
     def is_quadratic(self):
@@ -163,11 +165,11 @@ class WordEquation:
             lh, rh = heads_or_none(lhs, rhs)
         return WordEquation(lhs, rhs)
 
-    def replace(self, tgt: Element, subst: Element) -> 'WordEquation':
+    def replace(self, tgt: StrElement, subst: StrElement) -> 'WordEquation':
         return WordEquation([(subst if e == tgt else e) for e in self.lhs],
                             [(subst if e == tgt else e) for e in self.rhs])
 
-    def replace_with(self, tgt: Element, subst: List[Element]) \
+    def replace_with(self, tgt: StrElement, subst: List[StrElement]) \
             -> 'WordEquation':
         lhs_hoisted = [(subst if e == tgt else [e]) for e in self.lhs]
         rhs_hoisted = [(subst if e == tgt else [e]) for e in self.rhs]
