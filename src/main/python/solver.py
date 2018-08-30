@@ -298,7 +298,7 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: List[str]):
         while_end = '}'
         if_start = ' {'
         if_end = '}'
-        random_decl = '      rdn =  __VERIFIER_nondet_int();'
+        random_decl = '      rdn =  __VERIFIER_nondet_int();\n'
 
     # preprocessing, middle variables declaration
     trans = tree.node_relations
@@ -311,35 +311,38 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: List[str]):
             variables.add(t)
     node_count = 0
 
+    # open a file for writing code
+    fp = open(f'{print_word_equation_pretty(tree.root).replace("=", "-")}_{type}.c',"w")
+
     # variable declaration
     if type == 'interProc':
-        print('var ')
+        fp.write('var \n')
         for s in variables:
-            print(f'{s.value}: int,')
-        print('rdn: int,')
-        print('nodeNo: int,')
-        print('reachFinal: int;')
+            fp.write(f'{s.value}: int,\n')
+        fp.write('rdn: int,\n')
+        fp.write('nodeNo: int,\n')
+        fp.write('reachFinal: int;\n')
     elif type == 'UAutomizerC':
-        print('extern void __VERIFIER_error() __attribute__ ((__noreturn__));')
-        print('extern int __VERIFIER_nondet_int(void);')
-        print()
-        print('int main() {')
+        fp.write('extern void __VERIFIER_error() __attribute__ ((__noreturn__));\n')
+        fp.write('extern int __VERIFIER_nondet_int(void);\n')
+        fp.write('\n')
+        fp.write('int main() {\n')
         for s in variables:
-            print(f'  int {s.value};')
-        print('  int rdn, nodeNo, reachFinal;')
+            fp.write(f'  int {s.value};\n')
+        fp.write('  int rdn, nodeNo, reachFinal;\n')
     elif type == 'EldaricaC':
-        print('int __VERIFIER_nondet_int(void) { int n=_; return n; }')
-        print()
-        print('int main() {')
+        fp.write('int __VERIFIER_nondet_int(void) { int n=_; return n; }\n')
+        fp.write()
+        fp.write('int main() {\n')
         for s in variables:
-            print(f'  int {s.value};')
-        print('  int rdn, nodeNo, reachFinal;')
+            fp.write(f'  int {s.value};\n')
+        fp.write('  int rdn, nodeNo, reachFinal;\n')
 
     # program begins
-    print(prog_start)
-    print(f'  nodeNo = {node_count};')  # set nodeNo to zero (initial node)
-    print('  reachFinal = 0;')
-    print(f'  while (reachFinal==0) {while_start}')
+    fp.write(prog_start)
+    fp.write(f'  nodeNo = {node_count};\n')  # set nodeNo to zero (initial node)
+    fp.write('  reachFinal = 0;\n')
+    fp.write(f'  while (reachFinal==0) {while_start}\n')
     # start traverse from init node to final node
     init = SolveTree.success_end
     final = tree.root
@@ -353,59 +356,59 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: List[str]):
             visited_node.add(tmp_node)
 
         if tmp_node == init:  # this is the initial node
-            print(f'    if (nodeNo=={node_count}) {if_start}')
+            fp.write(f'    if (nodeNo=={node_count}) {if_start}\n')
             # node_count = 0 (the first loop)
-            print(f'    /* node = {print_word_equation_pretty(tmp_node)} */')
+            fp.write(f'    /* node = {print_word_equation_pretty(tmp_node)} */\n')
         else:
-            print(f'    if (nodeNo=={node2_count[tmp_node]}) {if_start}')
+            fp.write(f'    if (nodeNo=={node2_count[tmp_node]}) {if_start}\n')
             # node2_count must has key "tmp_node"
-            print(f'    /* node = {print_word_equation_pretty(tmp_node)} */')
+            fp.write(f'    /* node = {print_word_equation_pretty(tmp_node)} */\n')
             if tmp_node == final:  # this is the final node
-                print('      reachFinal=1;')
-                print(f'    {if_end}')
+                fp.write('      reachFinal=1;\n')
+                fp.write(f'    {if_end}\n')
                 continue
 
         tmp_labl = trans[tmp_node]
         tmp_len = len(tmp_labl)
 
         if tmp_len > 1:  # two or more parent nodes # currently not completed
-            print(random_decl)
+            fp.write(random_decl)
             # print "      assume rdn>=1 and rdn <=" + str(tmp_len) + ';'
             rdn_count = 1  # start from 1
             for s in tmp_labl:
                 if rdn_count == 1:
-                    print(f'      if (rdn<={rdn_count}) {if_start}')
+                    fp.write(f'      if (rdn<={rdn_count}) {if_start}\n')
                 elif rdn_count == tmp_len:
-                    print(f'      if (rdn>={rdn_count}) {if_start}')
+                    fp.write(f'      if (rdn>={rdn_count}) {if_start}\n')
                 else:
-                    print(f'      if (rdn=={rdn_count}) {if_start}')
-                print(f'        {print_transform_rewrite_length(s)};')
-                print(f'        // {print_transform_rewrite_pretty(s)};')
+                    fp.write(f'      if (rdn=={rdn_count}) {if_start}\n')
+                fp.write(f'        {print_transform_rewrite_length(s)};\n')
+                fp.write(f'        // {print_transform_rewrite_pretty(s)};\n')
                 # information for retrieving solution
                 if s.source in node2_count:
-                    print(f'        nodeNo={node2_count[s.source]};')
+                    fp.write(f'        nodeNo={node2_count[s.source]};\n')
                 else:
                     node_count += 1
-                    print(f'        nodeNo={node_count};')
+                    fp.write(f'        nodeNo={node_count};\n')
                     node2_count[s.source] = node_count
                 queued_node.add(s.source)
-                print(f'      {if_end}')
+                fp.write(f'      {if_end}\n')
                 rdn_count += 1
         else:
             for s in tmp_labl:
-                print(f'      {print_transform_rewrite_length(s)};')
-                print(f'      // {print_transform_rewrite_pretty(s)};')
+                fp.write(f'      {print_transform_rewrite_length(s)};\n')
+                fp.write(f'      // {print_transform_rewrite_pretty(s)};\n')
                 # information for retrieving solution
                 if s.source in node2_count:
-                    print(f'      nodeNo={node2_count[s.source]};')
+                    fp.write(f'      nodeNo={node2_count[s.source]};\n')
                 else:
                     node_count += 1
-                    print(f'      nodeNo={node_count};')
+                    fp.write(f'      nodeNo={node_count};\n')
                     node2_count[s.source] = node_count
                 queued_node.add(s.source)
 
-        print(f'    {if_end}')
-    print(f'  {while_end}')
+        fp.write(f'    {if_end}\n')
+    fp.write(f'  {while_end}\n')
     if lengthCons:
         if len(lengthCons) == 1:
             lc = lengthCons[0]
@@ -413,12 +416,14 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: List[str]):
             lc = ' && '.join(lengthCons)
     if type == "UAutomizerC" and lengthCons:
         # length constraint (for UAutomizer)
-        print(f'  if ({lc}) {{ //length constraint: {lengthCons}')
-        print('    ERROR: __VERIFIER_error();')
-        print('  }')
-        print('  else {')
-        print('    return 0;')
-        print('  }')
+        fp.write(f'  if ({lc}) {{ //length constraint: {lengthCons}\n')
+        fp.write('    ERROR: __VERIFIER_error();\n')
+        fp.write('  }\n')
+        fp.write('  else {\n')
+        fp.write('    return 0;\n')
+        fp.write('  }\n')
     if type == "EldaricaC" and lengthCons:  # length constraint (for Eldarica)
-        print(f'  assert (!({lc})); //length constraint: {lengthCons}')
-    print(prog_end)
+        fp.write(f'  assert (!({lc})); //length constraint: {lengthCons}\n')
+    fp.write(prog_end)
+
+    fp.close()
