@@ -42,6 +42,22 @@ class Syntax:
         return term_operator(term) == '='
 
     @classmethod
+    def is_greater(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == '>'
+
+    @classmethod
+    def is_less(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == '<'
+
+    @classmethod
+    def is_greater_equal(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == '>='
+
+    @classmethod
+    def is_less_equal(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == '<='
+
+    @classmethod
     def is_plus(cls, term: SMTLIB26Parser.TermContext):
         return term_operator(term) == '+'
 
@@ -61,6 +77,30 @@ class Syntax:
     def is_string_length(cls, term: SMTLIB26Parser.TermContext):
         pass
 
+    @classmethod
+    def is_string_contains(cls, term: SMTLIB26Parser.TermContext):
+        pass
+
+    @classmethod
+    def is_regex_membership(cls, term: SMTLIB26Parser.TermContext):
+        pass
+
+    @classmethod
+    def is_regex_from_string(cls, term: SMTLIB26Parser.TermContext):
+        pass
+
+    @classmethod
+    def is_regex_concat(cls, term: SMTLIB26Parser.TermContext):
+        pass
+
+    @classmethod
+    def is_regex_union(cls, term: SMTLIB26Parser.TermContext):
+        pass
+
+    @classmethod
+    def is_regex_star(cls, term: SMTLIB26Parser.TermContext):
+        pass
+
 
 class Z3Str2Syntax(Syntax):
     @classmethod
@@ -71,6 +111,30 @@ class Z3Str2Syntax(Syntax):
     def is_string_length(cls, term: SMTLIB26Parser.TermContext):
         return term_operator(term) == 'Length'
 
+    @classmethod
+    def is_string_contains(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == 'Contains'
+
+    @classmethod
+    def is_regex_membership(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == 'RegexIn'
+
+    @classmethod
+    def is_regex_from_string(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == 'Str2Regex'
+
+    @classmethod
+    def is_regex_concat(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == 'RegexConcat'
+
+    @classmethod
+    def is_regex_union(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == 'RegexUnion'
+
+    @classmethod
+    def is_regex_star(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == 'RegexStar'
+
 
 class Z3Str3Syntax(Syntax):
     @classmethod
@@ -80,6 +144,30 @@ class Z3Str3Syntax(Syntax):
     @classmethod
     def is_string_length(cls, term: SMTLIB26Parser.TermContext):
         return term_operator(term) == 'str.len'
+
+    @classmethod
+    def is_string_contains(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == 'str.contains'
+
+    @classmethod
+    def is_regex_membership(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == 'str.in.re'
+
+    @classmethod
+    def is_regex_from_string(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == 'str.to.re'
+
+    @classmethod
+    def is_regex_concat(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == 're.++'
+
+    @classmethod
+    def is_regex_union(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == 're.union'
+
+    @classmethod
+    def is_regex_star(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == 're.*'
 
 
 Z3STR2_SYNTAX = Z3Str2Syntax()
