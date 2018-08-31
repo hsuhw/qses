@@ -1,9 +1,9 @@
 from enum import Enum, unique, auto
-from typing import Dict, List
+from typing import Dict, List, Union, Optional
 
-from lenc import LengthConstraint
+from lenc import LengthConstraint, IntExpression
 from regc import RegularConstraint
-from we import WordEquation, StrVariable
+from we import WordEquation, StrVariable, StrExpression
 
 
 @unique
@@ -12,6 +12,33 @@ class ValueType(Enum):
     int = auto()
     string = auto()
     unknown = auto()
+
+
+@unique
+class Connective(Enum):
+    logic_and = auto()
+    logic_or = auto()
+
+
+YetTyped = str
+Part = Union[StrExpression, IntExpression, YetTyped]
+Literal = Union[WordEquation, LengthConstraint, RegularConstraint]
+
+
+class Term:
+    def __init__(self, items: List[Union['Term', Literal]],
+                 conn: Optional[Connective] = None):
+        assert conn or (len(items) == 1 and not isinstance(items[0], Term))
+        self.items: List[Union['Term', Literal]] = items
+        self.connective: Optional[Connective] = conn
+
+    def __repr__(self):
+        ts = " ".join([str(e) for e in self.items])
+        return f'({self.connective.name} {ts})' if self.connective else ts
+
+    def negate(self) -> 'Term':
+        assert len(self.items) == 1
+        return self.__class__([self.items[0].negate()])
 
 
 class MultiDeclarationError(Exception):
