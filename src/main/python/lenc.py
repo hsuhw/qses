@@ -143,42 +143,43 @@ class LengthConstraint:
 
     def negate(self) -> 'LengthConstraint':
         return self.__class__(self.lhs, self.rhs, negation[self.relation])
-#
-#
-# functions for print length constraints
-def print_lenc_elements_pretty(elem: Element) -> str:
+
+
+def print_lenc_elements_pretty(elem: IntElement) -> str:
     sign = ''
     if elem.coefficient == -1:
         sign = '-'
-    if isinstance(elem,Variable):
-        return f'{sign}{elem.value[3:-5]}' # remove post-fix "_len_"
-    if isinstance(elem,Constant):
+    if isinstance(elem, IntVariable):
+        return f'{sign}{elem.value[3:-5]}'  # remove post-fix "_len_"
+    if isinstance(elem, IntConstant):
         return f'{sign}{elem.value}'
 
+
 def print_length_constraint_pretty(lenc: LengthConstraint) -> str:
-    if len(lenc.lhs)==0 or len(lenc.rhs)==0:
+    if len(lenc.lhs) == 0 or len(lenc.rhs) == 0:
         return ''
 
     left = print_lenc_elements_pretty(lenc.lhs[0])
     right = print_lenc_elements_pretty(lenc.rhs[0])
     for e in lenc.lhs[1:]:
         tmp_str = print_lenc_elements_pretty(e)
-        if temp_str[0]=='-':
+        if tmp_str[0] == '-':
             left += f' - {tmp_str[1:]}'
         else:
             left += f' + {tmp_str[1:]}'
 
     for e in lenc.rhs[1:]:
         tmp_str = print_lenc_elements_pretty(e)
-        if temp_str[0]=='-':
+        if tmp_str[0] == '-':
             right += f' - {tmp_str[1:]}'
         else:
             right += f' + {tmp_str[1:]}'
 
     return f'{left} == {right}'
-#
+
+
 def print_length_constraints_as_condition(lencs: List[LengthConstraint]) -> str:
-    if len(lencs) == 0: # no length constraints
+    if len(lencs) == 0:  # no length constraints
         return ''
 
     if len(lencs) == 1:
@@ -189,4 +190,3 @@ def print_length_constraints_as_condition(lencs: List[LengthConstraint]) -> str:
             ret += f' && ({print_length_constraint_pretty(lenc)})'
 
     return ret
-#
