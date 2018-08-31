@@ -14,7 +14,7 @@ class IntElement:
             c = ''
         elif self.coefficient == -1:
             c = '-'
-        return f'{c}{self.__class__.__name__[0]}({self.value})'
+        return f'{c}{self.__class__.__name__[3]}({self.value})'
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -134,7 +134,9 @@ class LengthConstraint:
         self.relation: Relation = rel
 
     def __repr__(self):
-        return f'{self.lhs} {self.relation.value} {self.rhs}'
+        lhs = ' '.join([str(e) for e in self.lhs])
+        rhs = ' '.join([str(e) for e in self.rhs])
+        return f'ie[{lhs} {self.relation.value} {rhs}]'
 
     def variables(self) -> Set[IntVariable]:
         return {e for e in self.lhs + self.rhs if isinstance(e, IntVariable)}

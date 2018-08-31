@@ -29,6 +29,9 @@ class Character(StrElement):
 
 
 class StrVariable(StrElement):
+    def __repr__(self):
+        return f'V({self.value})'
+
     def length(self):
         return IntVariable(f'xx_{self.value}_len_')
 
@@ -83,7 +86,9 @@ class WordEquation:
         self.negation: bool = neg
 
     def __repr__(self):
-        return f'{self.lhs} {"!=" if self.negation else "=="} {self.rhs}'
+        lhs = ' '.join([str(e) for e in self.lhs])
+        rhs = ' '.join([str(e) for e in self.rhs])
+        return f'we[{lhs} {"!=" if self.negation else "=="} {rhs}]'
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
