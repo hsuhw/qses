@@ -88,7 +88,7 @@ class WordEquation:
     def __repr__(self):
         lhs = ' '.join([str(e) for e in self.lhs])
         rhs = ' '.join([str(e) for e in self.rhs])
-        return f'we[{lhs} {"!=" if self.negation else "=="} {rhs}]'
+        return f'wc[{lhs} {"!=" if self.negation else "=="} {rhs}]'
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):

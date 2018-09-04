@@ -105,7 +105,7 @@ negation = {
 
 
 def reduce_constants(expr: IntExpression) -> IntExpression:
-    """ Constant (if any) will be the last element. """
+    """ Constant (if any) will be the last element in the returned list. """
     result = []
     acc = 0
     for e in expr:
@@ -136,7 +136,7 @@ class LengthConstraint:
     def __repr__(self):
         lhs = ' '.join([str(e) for e in self.lhs])
         rhs = ' '.join([str(e) for e in self.rhs])
-        return f'ie[{lhs} {self.relation.value} {rhs}]'
+        return f'ic[{lhs} {self.relation.value} {rhs}]'
 
     def variables(self) -> Set[IntVariable]:
         return {e for e in self.lhs + self.rhs if isinstance(e, IntVariable)}

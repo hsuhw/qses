@@ -78,7 +78,7 @@ class Problem:
             self.declare_variable(length_var_name, ValueType.int)
 
     def new_variable(self, typ: ValueType) -> str:
-        name = f'xxx_{typ.name}{self.internal_var_count}_'
+        name = f'xx_{typ.name}{self.internal_var_count}_'
         self.variables[name] = typ
         self.internal_var_count += 1
         return name
@@ -92,11 +92,11 @@ class Problem:
             self.ensure_variable_known(var.value, ValueType.string)
         self.word_equations.append(we)
 
-    def add_regular_constraint(self, constr: RegularConstraint):
-        self.ensure_variable_known(constr.tgt_var.value, ValueType.string)
-        self.reg_constraints.append(constr)
+    def add_regular_constraint(self, cons: RegularConstraint):
+        self.ensure_variable_known(cons.tgt_var.value, ValueType.string)
+        self.reg_constraints.append(cons)
 
-    def add_length_constraint(self, constr: LengthConstraint):
-        for var in constr.variables():
+    def add_length_constraint(self, cons: LengthConstraint):
+        for var in cons.variables():
             self.ensure_variable_known(var.value, ValueType.int)
-        self.len_constraints.append(constr)
+        self.len_constraints.append(cons)
