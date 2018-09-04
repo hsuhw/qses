@@ -1,4 +1,5 @@
 from enum import Enum, unique, auto
+from functools import reduce
 from typing import Dict, List, Union, Optional
 
 from lenc import LengthConstraint, IntExpression
@@ -36,9 +37,27 @@ class Term:
         ts = " ".join([str(e) for e in self.items])
         return f'({self.connective.name} {ts})' if self.connective else ts
 
+    def is_clause(self):
+        return reduce((lambda acc, i: acc and not isinstance(i, Term)),
+                      self.items, True)
+
     def negate(self) -> 'Term':
         assert len(self.items) == 1
         return self.__class__([self.items[0].negate()])
+
+    def normalize(self):
+        # TODO: only correctly handle conjunction
+        if not self.connective:
+            return self
+        result = []
+        for i in self.items:
+            if not isinstance(i, Term):
+                result.append(i)
+            elif not i.connective:
+                result.append(i.items[0])
+            else:
+                result.append(i)
+        return Term(result, self.connective)
 
 
 class MultiDeclarationError(Exception):
