@@ -14,7 +14,7 @@ RUN wget -O openfst.tar.gz "http://www.openfst.org/twiki/pub/FST/FstDownload/ope
  && tar -xzC /usr/src/openfst --strip-components=1 -f openfst.tar.gz \
  && rm -rf openfst.tar.gz \
  && cd /usr/src/openfst \
- && ./configure && make && make install \
+ && ./configure --enable-far && make && make install \
  && cd /; rm -rf /usr/src/openfst
 
 # Install ANTLR4 C++ Runtime

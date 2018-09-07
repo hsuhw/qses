@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "a71c5bdcf3efb8f0e2f258a14f890bf13fe87e359e5bca554417b2e1181df59a"
+            "sha256": "44adf9848976f6409342808fc4fbb32869d0fbcf0a47b4c16d6113479369a195"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -23,13 +23,28 @@
             "index": "pypi",
             "version": "==4.7.1"
         },
-        "graphviz": {
+        "bidict": {
             "hashes": [
-                "sha256:4958a19cbd8461757a08db308a4a15c3d586660417e1e364f0107d2fe481689f",
-                "sha256:7caa53f0b0be42c5f2eaa3f3d71dcc863b15bacceb5d531c2ad7519e1980ff82"
+                "sha256:a6477740bb73b925c1814d0f0d6deca1b74aa19f2d31f252d71f14acc53b187d"
             ],
             "index": "pypi",
-            "version": "==0.8.4"
+            "version": "==0.17.2"
+        },
+        "graphviz": {
+            "hashes": [
+                "sha256:310bacfb969f0ac7c872610500e017c3e82b24a8abd33d289e99af162de30cb8",
+                "sha256:865afa6ab9775cf29db03abd8e571a164042c726c35a1b3c1e2b8c4c645e2993"
+            ],
+            "index": "pypi",
+            "version": "==0.9"
+        },
+        "openfst": {
+            "hashes": [
+                "sha256:7fb4580073031202168f5d0fccd42173d3e57ad6b1604e77822772eaf88d8bc7",
+                "sha256:fd7d1b5c77db76a66291e25c3cafe623405b0b68b071d558fababcc423c417e6"
+            ],
+            "index": "pypi",
+            "version": "==1.6.9"
         },
         "pybuilder": {
             "hashes": [
