@@ -86,8 +86,8 @@ class WordEquation:
         self.negation: bool = neg
 
     def __repr__(self):
-        lhs = ' '.join([str(e) for e in self.lhs])
-        rhs = ' '.join([str(e) for e in self.rhs])
+        lhs = ' '.join(map(str, self.lhs))
+        rhs = ' '.join(map(str, self.rhs))
         return f'wc[{lhs} {"!=" if self.negation else "=="} {rhs}]'
 
     def __eq__(self, other):

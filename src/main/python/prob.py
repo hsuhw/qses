@@ -34,7 +34,7 @@ class Term:
         self.connective: Optional[Connective] = conn
 
     def __repr__(self):
-        ts = " ".join([str(e) for e in self.items])
+        ts = ' '.join(map(str, self.items))
         return f'({self.connective.name} {ts})' if self.connective else ts
 
     def is_clause(self):

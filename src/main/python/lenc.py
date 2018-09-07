@@ -134,8 +134,8 @@ class LengthConstraint:
         self.relation: Relation = rel
 
     def __repr__(self):
-        lhs = ' '.join([str(e) for e in self.lhs])
-        rhs = ' '.join([str(e) for e in self.rhs])
+        lhs = ' '.join(map(str, self.lhs))
+        rhs = ' '.join(map(str, self.rhs))
         return f'ic[{lhs} {self.relation.value} {rhs}]'
 
     def variables(self) -> Set[IntVariable]:
