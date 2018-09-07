@@ -133,7 +133,7 @@ class LengthConstraint:
         self.rhs: IntExpression = rhs
         self.relation: Relation = rel
 
-    def __repr__(self):
+    def __str__(self):
         lhs = ' '.join(map(str, self.lhs))
         rhs = ' '.join(map(str, self.rhs))
         return f'ic[{lhs} {self.relation.value} {rhs}]'

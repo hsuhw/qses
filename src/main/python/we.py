@@ -85,7 +85,7 @@ class WordEquation:
         self.rhs: StrExpression = rhs
         self.negation: bool = neg
 
-    def __repr__(self):
+    def __str__(self):
         lhs = ' '.join(map(str, self.lhs))
         rhs = ' '.join(map(str, self.rhs))
         return f'wc[{lhs} {"!=" if self.negation else "=="} {rhs}]'
