@@ -1,17 +1,20 @@
 import antlr4
 
+import fsa
 import lenc
 import prob
 
+from functools import reduce
 from typing import List, Tuple, Union, Optional
 
 from generated.SMTLIB26Lexer import SMTLIB26Lexer
 from generated.SMTLIB26Parser import SMTLIB26Parser
 from generated.SMTLIB26ParserListener import SMTLIB26ParserListener
-from prob import Problem, Part, Literal, Term, ValueType, Connective, YetTyped
-from we import WordEquation, Character, StrVariable, StrExpression
 from lenc import LengthConstraint, IntConstant, IntVariable, IntExpression, \
     Relation
+from prob import Problem, Part, Literal, Term, ValueType, Connective, YetTyped
+from regc import RegExpression
+from we import WordEquation, Character, StrVariable, StrExpression
 
 TermContext = SMTLIB26Parser.TermContext
 
@@ -241,6 +244,7 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
             elif term.spec_constant().STRING():
                 string = term.spec_constant().STRING().getText()[1:-1]
                 chars = string_to_characters(string)
+                map(lambda x: self.problem.alphabet.take(x.value), chars)
                 return chars, ValueType.string
             # other types of `spec_constant` not handled
         elif term.qual_identifier():
@@ -352,6 +356,34 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
         else:
             raise prob.InvalidConstructError(self.src_pos(term.term(1)))
 
+    def handle_regex_from_string(self, term: SMTLIB26Parser.TermContext) \
+            -> TypedSMTLIBTerm:
+        assert len(term.term()) == 1
+        op = term.term(0)
+        if op.spec_constant() and op.spec_constant().STRING():
+            string = term.spec_constant().STRING().getText()[1:-1]
+            return fsa.from_str(string, self.problem.alphabet), ValueType.regex
+        raise prob.UnsupportedConstructError(self.src_pos(op))
+
+    def handle_regex_concat(self, term: SMTLIB26Parser.TermContext,
+                            operands: TypedOperands) -> TypedSMTLIBTerm:
+        ops: List[RegExpression] = self.set_operands_type(term, operands,
+                                                          ValueType.regex)
+        return reduce(lambda x, y: x.concat(y), ops), ValueType.regex
+
+    def handle_regex_union(self, term: SMTLIB26Parser.TermContext,
+                           operands: TypedOperands) -> TypedSMTLIBTerm:
+        ops: List[RegExpression] = self.set_operands_type(term, operands,
+                                                          ValueType.regex)
+        return reduce(lambda x, y: x.union(y), ops), ValueType.regex
+
+    def handle_regex_star(self, term: SMTLIB26Parser.TermContext,
+                          operands: TypedOperands) -> TypedSMTLIBTerm:
+        assert len(operands) == 1
+        op: RegExpression = self.set_operands_type(term, operands,
+                                                   ValueType.regex)[0]
+        return op.closure(), ValueType.regex
+
     def handle_term(self, term: TermContext) -> TypedSMTLIBTerm:
         if not term.OPEN_PAR():
             return self.handle_base_case(term)
@@ -367,6 +399,10 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
                     return self.handle_string_length(term, operands)
                 elif self.syntax.is_negation(term):
                     return self.handle_negation(term, operands)
+                elif self.syntax.is_regex_from_string(term):
+                    return self.handle_regex_from_string(term)
+                elif self.syntax.is_regex_star(term):
+                    return self.handle_regex_star(term, operands)
             elif operand_num > 1:
                 if self.syntax.is_conjunction(term):
                     return self.handle_conjunction(term, operands)
@@ -396,6 +432,10 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
                     return self.handle_int_times(term, operands)
                 elif self.syntax.is_string_concat(term):
                     return self.handle_string_concat(term, operands)
+                elif self.syntax.is_regex_concat(term):
+                    return self.handle_regex_concat(term, operands)
+                elif self.syntax.is_regex_union(term):
+                    return self.handle_regex_union(term, operands)
         raise prob.UnsupportedConstructError(self.src_pos(term))
 
     def handle_terms(self, terms: List[TermContext]) -> TypedOperands:

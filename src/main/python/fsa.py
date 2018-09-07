@@ -20,7 +20,7 @@ class Alphabet:
         self._symbol_to_int = bidict()
         self._symbol_to_int[EPSILON] = 0
 
-    def take_symbol(self, symbol: Symbol):
+    def take(self, symbol: Symbol):
         assert len(symbol) == 1
         if symbol not in self._symbol_to_int:
             self._symbol_to_int[symbol] = len(self._symbol_to_int)
@@ -99,7 +99,7 @@ class FSA:
     def add_arc(self, dept: StateId, dest: StateId, symbol: Symbol = EPSILON):
         assert len(symbol) == 1 or symbol == EPSILON
         assert dept <= self._biggest_state and dest <= self._biggest_state
-        symbol_int = self.alphabet.take_symbol(symbol)
+        symbol_int = self.alphabet.take(symbol)
         arc = fst.Arc(symbol_int, symbol_int, TRUE, dest)
         self._backend_obj.add_arc(dept, arc)
         return self

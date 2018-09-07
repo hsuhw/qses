@@ -2,8 +2,9 @@ from enum import Enum, unique, auto
 from functools import reduce
 from typing import Dict, List, Union, Optional
 
+from fsa import FSA, Alphabet
 from lenc import LengthConstraint, IntExpression
-from regc import RegularConstraint
+from regc import RegularConstraint, RegExpression
 from we import WordEquation, StrVariable, StrExpression
 
 
@@ -12,6 +13,7 @@ class ValueType(Enum):
     bool = auto()
     int = auto()
     string = auto()
+    regex = auto()
     unknown = auto()
 
 
@@ -22,7 +24,7 @@ class Connective(Enum):
 
 
 YetTyped = str
-Part = Union[StrExpression, IntExpression, YetTyped]
+Part = Union[StrExpression, IntExpression, RegExpression, YetTyped]
 Literal = Union[WordEquation, LengthConstraint, RegularConstraint]
 
 
@@ -84,8 +86,9 @@ class Problem:
     def __init__(self):
         self.variables: Dict[str, ValueType] = {}
         self.internal_var_count: int = 0
+        self.alphabet = Alphabet()
         self.word_equations: List[WordEquation] = []
-        self.reg_constraints: List[RegularConstraint] = []
+        self.reg_constraints: Dict[str, FSA] = {}
         self.len_constraints: List[LengthConstraint] = []
 
     def declare_variable(self, name: str, typ: ValueType):
@@ -112,8 +115,9 @@ class Problem:
         self.word_equations.append(we)
 
     def add_regular_constraint(self, cons: RegularConstraint):
-        self.ensure_variable_known(cons.tgt_var.value, ValueType.string)
-        self.reg_constraints.append(cons)
+        assert cons.nfa.alphabet == self.alphabet
+        self.ensure_variable_known(cons.str_var, ValueType.string)
+        self.reg_constraints[cons.str_var] = cons.nfa
 
     def add_length_constraint(self, cons: LengthConstraint):
         for var in cons.variables():
