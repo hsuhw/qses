@@ -20,8 +20,11 @@ class Alphabet:
         self._symbol_to_int = bidict()
         self._symbol_to_int[EPSILON] = 0
 
+    def symbols(self):
+        return self._symbol_to_int
+
     def take(self, symbol: Symbol):
-        assert len(symbol) == 1
+        assert len(symbol) == 1 or symbol == EPSILON
         if symbol not in self._symbol_to_int:
             self._symbol_to_int[symbol] = len(self._symbol_to_int)
         return self._symbol_to_int[symbol]
@@ -31,6 +34,15 @@ class Alphabet:
 
     def symbol(self, index: int):
         return self._symbol_to_int.inv[index]
+
+
+def all_fsa(alphabet: Alphabet):
+    result = FSA(alphabet)
+    ss = result.start_state()
+    result.set_final(ss)
+    for symbol in alphabet.symbols():
+        result.add_arc(ss, ss, symbol)
+    return result
 
 
 class FSA:
@@ -97,22 +109,38 @@ class FSA:
         return ((s, sym, ns) for s in ss for sym, ns in self.out_arcs(s))
 
     def add_arc(self, dept: StateId, dest: StateId, symbol: Symbol = EPSILON):
-        assert len(symbol) == 1 or symbol == EPSILON
         assert dept <= self._biggest_state and dest <= self._biggest_state
         symbol_int = self.alphabet.take(symbol)
         arc = fst.Arc(symbol_int, symbol_int, TRUE, dest)
         self._backend_obj.add_arc(dept, arc)
         return self
 
-    def minimize(self, in_place=True) -> 'FSA':
-        tgt = self if in_place else deepcopy(self)
+    def determinize(self, destructive=True) -> 'FSA':
+        tgt = self if destructive else deepcopy(self)
+        tgt._backend_obj.rmepsilon()
+        result = FSA(tgt.alphabet)
+        result._backend_obj = fst.determinize(tgt._backend_obj)
+        # TODO: ensure `tgt.biggest_state` is correct
+        return result
+
+    def minimize(self, destructive=True) -> 'FSA':
+        tgt = self if destructive else deepcopy(self)
         tgt._backend_obj.rmepsilon()
         tgt._backend_obj.minimize(allow_nondet=True)
         # TODO: ensure `tgt.biggest_state` is correct
         return tgt
 
-    def closure(self, in_place=True) -> 'FSA':
-        tgt = self if in_place else deepcopy(self)
+    def complement(self, destructive=True):
+        u = all_fsa(self.alphabet)._backend_obj
+        tgt = self.determinize(destructive)._backend_obj
+        result = FSA(self.alphabet)
+        result._backend_obj = fst.difference(u, tgt)
+        result._backend_obj.rmepsilon()
+        # TODO: ensure `tgt.biggest_state` is correct
+        return result
+
+    def closure(self, destructive=True) -> 'FSA':
+        tgt = self if destructive else deepcopy(self)
         tgt._backend_obj.closure()
         # TODO: ensure `tgt.biggest_state` is correct
         return tgt

@@ -75,9 +75,9 @@
 (assert(= var_0xINPUT_5121 ( str.++ T0_7 T1_7 )))
 
 ; Regular Constraints
-(assert(str.in.re T1_3 (re.++ ( str.to.re "?" )( str.to.re "?" ))))
+(assert(str.in.re T1_3 (re.++ ( str.to.re "!" )( str.to.re "?" ))))
 (assert(str.in.re T1_7 (re.union (str.to.re "#" ) (str.to.re "#" ))))
-(assert(str.in.re T4_3 (re.union (str.to.re "#" ) (str.to.re "?" ))))
+(assert(not (str.in.re T4_3 (re.union (str.to.re "#" ) (str.to.re "?" )))))
 (assert(str.in.re T4_7 (re.++ (re.* (str.to.re "#" )) (str.to.re "#" ))))
 
 ;(assert(not(str.in.re T1_3 ( str.to.re "?" ))))

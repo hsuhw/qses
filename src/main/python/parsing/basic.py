@@ -400,7 +400,8 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
             raise prob.InvalidConstructError(self.src_pos(term.term(0)))
         if typ2 is not ValueType.regex:
             raise prob.InvalidConstructError(self.src_pos(term.term(1)))
-        return RegularConstraint(op1[0].value, op2.minimize()), ValueType.bool
+        dfa = op2.determinize().minimize()
+        return RegularConstraint(op1[0].value, dfa), ValueType.bool
 
     def handle_term(self, term: TermContext) -> TypedSMTLIBTerm:
         if not term.OPEN_PAR():
