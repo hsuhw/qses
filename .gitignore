@@ -190,3 +190,6 @@ src/main/antlr/*
 !src/main/antlr/*.g4
 src/main/python/generated/*
 !src/main/python/generated/__init__.py
+
+src/main/hlin/*
+*_hlin.*
