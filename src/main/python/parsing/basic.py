@@ -13,7 +13,7 @@ from generated.SMTLIB26ParserListener import SMTLIB26ParserListener
 from lenc import LengthConstraint, IntConstant, IntVariable, IntExpression, \
     Relation
 from prob import Problem, Part, Literal, Term, ValueType, Connective, YetTyped
-from regc import RegExpression
+from regc import RegularConstraint, RegExpression
 from we import WordEquation, Character, StrVariable, StrExpression
 
 TermContext = SMTLIB26Parser.TermContext
@@ -215,6 +215,7 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
 
     def set_operands_type(self, term: TermContext, operands: TypedOperands,
                           tgt_type: ValueType) -> Operands:
+        assert tgt_type is not ValueType.unknown
         result = []
         for index, (operand, typ) in enumerate(operands):
             if typ is ValueType.unknown:
@@ -224,6 +225,12 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
                     result.append(([IntVariable(operand)], tgt_type))
                 elif tgt_type is ValueType.string:
                     result.append(([StrVariable(operand)], tgt_type))
+                elif tgt_type is ValueType.bool:
+                    pos = self.src_pos(term.term(index))
+                    raise prob.UnsupportedConstructError(pos)
+                elif tgt_type is ValueType.regex:
+                    pos = self.src_pos(term.term(index))
+                    raise prob.InvalidConstructError(pos)
             elif typ is not tgt_type:
                 raise prob.InvalidTypeError(self.src_pos(term.term(index)))
             else:
@@ -267,7 +274,7 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
         ops = self.set_operands_type(term, operands, ValueType.bool)
         terms = []
         for op in ops:
-            if op.connective is Connective.logic_and:
+            if isinstance(op, Term) and op.connective is Connective.logic_and:
                 terms += op.items
             else:
                 terms.append(op)
@@ -287,7 +294,7 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
         for index in range(1, len(ops)):
             literals.append(WordEquation(ops[index - 1], ops[index]))
         if len(literals) == 1:
-            return Term(literals), ValueType.bool
+            return literals[0], ValueType.bool
         return Term(literals, Connective.logic_and), ValueType.bool
 
     def handle_string_concat(self, term: TermContext,
@@ -311,7 +318,7 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
         for index in range(1, len(ops)):
             literals.append(LengthConstraint(ops[index - 1], ops[index]))
         if len(literals) == 1:
-            return Term(literals), ValueType.bool
+            return literals[0], ValueType.bool
         return Term(literals, Connective.logic_and), ValueType.bool
 
     def handle_int_inequality(self, term: TermContext, operands: TypedOperands,
@@ -319,7 +326,7 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
         assert len(operands) == 2
         ops: List[IntExpression] = self.set_operands_type(term, operands,
                                                           ValueType.int)
-        return Term([LengthConstraint(ops[0], ops[1], rel)]), ValueType.bool
+        return LengthConstraint(ops[0], ops[1], rel), ValueType.bool
 
     def handle_int_opposite(self, term: SMTLIB26Parser.TermContext,
                             operands: TypedOperands) -> TypedSMTLIBTerm:
@@ -361,7 +368,7 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
         assert len(term.term()) == 1
         op = term.term(0)
         if op.spec_constant() and op.spec_constant().STRING():
-            string = term.spec_constant().STRING().getText()[1:-1]
+            string = op.spec_constant().STRING().getText()[1:-1]
             return fsa.from_str(string, self.problem.alphabet), ValueType.regex
         raise prob.UnsupportedConstructError(self.src_pos(op))
 
@@ -383,6 +390,17 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
         op: RegExpression = self.set_operands_type(term, operands,
                                                    ValueType.regex)[0]
         return op.closure(), ValueType.regex
+
+    def handle_regex_membership(self, term: SMTLIB26Parser.TermContext,
+                                operands: TypedOperands) -> TypedSMTLIBTerm:
+        assert len(operands) == 2
+        [(op1, typ1), (op2, typ2), *_] = operands
+        if (typ1 is not ValueType.string
+                or len(op1) != 1 or not isinstance(op1[0], StrVariable)):
+            raise prob.InvalidConstructError(self.src_pos(term.term(0)))
+        if typ2 is not ValueType.regex:
+            raise prob.InvalidConstructError(self.src_pos(term.term(1)))
+        return RegularConstraint(op1[0].value, op2.minimize()), ValueType.bool
 
     def handle_term(self, term: TermContext) -> TypedSMTLIBTerm:
         if not term.OPEN_PAR():
@@ -436,26 +454,32 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
                     return self.handle_regex_concat(term, operands)
                 elif self.syntax.is_regex_union(term):
                     return self.handle_regex_union(term, operands)
+                elif self.syntax.is_regex_membership(term) and operand_num == 2:
+                    return self.handle_regex_membership(term, operands)
         raise prob.UnsupportedConstructError(self.src_pos(term))
 
     def handle_terms(self, terms: List[TermContext]) -> TypedOperands:
         return list(map(lambda t: self.handle_term(t), terms))
 
+    def assert_literal(self, item: Literal, ctx: SMTLIB26Parser.TermContext):
+        if isinstance(item, LengthConstraint):
+            self.problem.add_length_constraint(item)
+        elif isinstance(item, WordEquation):
+            self.problem.add_word_equation(item)
+        elif isinstance(item, RegularConstraint):
+            self.problem.add_regular_constraint(item)
+        else:
+            raise prob.InvalidConstructError(self.src_pos(ctx))
+
     def assert_term(self, ctx: SMTLIB26Parser.TermContext):
         term, typ = self.handle_term(ctx)
         if typ is not ValueType.bool:
             raise prob.InvalidConstructError(self.src_pos(ctx))
-        term = term.normalize()
-        if not term.is_clause():
-            raise prob.UnsupportedConstructError(self.src_pos(ctx))
-        for index, item in enumerate(term.items):
-            if isinstance(item, LengthConstraint):
-                self.problem.add_length_constraint(item)
-            elif isinstance(item, WordEquation):
-                self.problem.add_word_equation(item)
-            else:
-                nested_term_pos = self.src_pos(ctx.term(index))
-                raise prob.UnsupportedConstructError(nested_term_pos)
+        if not isinstance(term, Term):
+            self.assert_literal(term, ctx.term(0))
+        else:
+            for index, item in enumerate(term.items):
+                self.assert_literal(item, ctx.term(index))
 
     def enterCommand(self, ctx: SMTLIB26Parser.CommandContext):
         if ctx.TOKEN_CMD_DECLARE_FUN():

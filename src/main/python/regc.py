@@ -1,3 +1,5 @@
+import prob
+
 from fsa import FSA
 
 RegExpression = FSA
@@ -9,4 +11,4 @@ class RegularConstraint:
         self.nfa: RegExpression = nfa
 
     def negate(self) -> 'RegularConstraint':
-        pass
+        raise prob.UnsupportedConstructError()

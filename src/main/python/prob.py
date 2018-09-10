@@ -1,6 +1,6 @@
 from enum import Enum, unique, auto
 from functools import reduce
-from typing import Dict, List, Union, Optional
+from typing import Dict, List, Union
 
 from fsa import FSA, Alphabet
 from lenc import LengthConstraint, IntExpression
@@ -29,37 +29,17 @@ Literal = Union[WordEquation, LengthConstraint, RegularConstraint]
 
 
 class Term:
-    def __init__(self, items: List[Union['Term', Literal]],
-                 conn: Optional[Connective] = None):
-        assert conn or (len(items) == 1 and not isinstance(items[0], Term))
+    def __init__(self, items: List[Union['Term', Literal]], conn: Connective):
+        assert len(items) != 1
         self.items: List[Union['Term', Literal]] = items
-        self.connective: Optional[Connective] = conn
+        self.connective: Connective = conn
 
     def __repr__(self):
-        ts = ' '.join(map(str, self.items))
-        return f'({self.connective.name} {ts})' if self.connective else ts
+        return f'({self.connective.name} {" ".join(map(str, self.items))})'
 
     def is_clause(self):
         return reduce((lambda acc, i: acc and not isinstance(i, Term)),
                       self.items, True)
-
-    def negate(self) -> 'Term':
-        assert len(self.items) == 1
-        return self.__class__([self.items[0].negate()])
-
-    def normalize(self):
-        # TODO: only correctly handle conjunction
-        if not self.connective:
-            return self
-        result = []
-        for i in self.items:
-            if not isinstance(i, Term):
-                result.append(i)
-            elif not i.connective:
-                result.append(i.items[0])
-            else:
-                result.append(i)
-        return Term(result, self.connective)
 
 
 class MultiDeclarationError(Exception):
