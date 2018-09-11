@@ -100,6 +100,10 @@ class FSA:
         self._backend_obj.set_final(state)
         return self
 
+    def unset_final(self, state: StateId) -> 'FSA':
+        self._backend_obj.set_final(state, FALSE)
+        return self
+
     def out_arcs(self, state: StateId) -> Iterator[Outgoing]:
         arcs = self._backend_obj.arcs(state)
         return ((self.alphabet.symbol(a.ilabel), a.nextstate) for a in arcs)
