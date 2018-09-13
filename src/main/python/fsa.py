@@ -1,7 +1,7 @@
 import pywrapfst as fst
 
 from copy import deepcopy
-from typing import Iterator, Tuple
+from typing import Iterator, Tuple, List
 
 from bidict import bidict
 from util import nostderr
@@ -72,6 +72,22 @@ class FSA:
         arcs = 'arcs:' + (('\n  ' + '\n  '.join(arcs)) if arcs else '')
         return '\n'.join([states, start, finals, arcs])
 
+    def __repr__(self):
+        start = f'S({self.start_state()})'
+        finals = 'F(' + ' '.join(map(str, self.final_states())) + ')'
+        arcs = []
+        for s, sym, ns in self.arcs():
+            sym = sym if sym == EPSILON else f"'{sym}'"
+            arcs.append(f'({s}-{sym}-{ns})')
+        arcs = 'ARCS(' + ''.join(arcs) + ')'
+        return ''.join([start, finals, arcs])
+
+    def __eq__(self, other: 'FSA'):
+        return fst.equivalent(self._backend_obj, other._backend_obj)
+
+    def __hash__(self):
+        return hash(repr(self))
+
     def states(self) -> Iterator[StateId]:
         return self._backend_obj.states()
 
@@ -122,10 +138,11 @@ class FSA:
     def determinize(self, destructive=True) -> 'FSA':
         tgt = self if destructive else deepcopy(self)
         tgt._backend_obj.rmepsilon()
-        result = FSA(tgt.alphabet)
-        result._backend_obj = fst.determinize(tgt._backend_obj)
+        # result = FSA(tgt.alphabet)
+        # result._backend_obj = fst.determinize(tgt._backend_obj)
+        tgt._backend_obj = fst.determinize(tgt._backend_obj)
         # TODO: ensure `tgt.biggest_state` is correct
-        return result
+        return tgt
 
     def minimize(self, destructive=True) -> 'FSA':
         tgt = self if destructive else deepcopy(self)
@@ -137,7 +154,7 @@ class FSA:
     def complement(self, destructive=True):
         u = all_fsa(self.alphabet)._backend_obj
         tgt = self.determinize(destructive)._backend_obj
-        result = FSA(self.alphabet)
+        result = self if destructive else FSA(self.alphabet)
         result._backend_obj = fst.difference(u, tgt)
         result._backend_obj.rmepsilon()
         # TODO: ensure `tgt.biggest_state` is correct
@@ -180,3 +197,38 @@ def from_str(s: str, alphabet=Alphabet()) -> FSA:
         curr_state = next_state
     result.set_final(curr_state)
     return result
+
+
+def remove_first_char(fsa: FSA, ch: Symbol) -> [FSA]:
+    new_init_states = {arc[1] for arc in fsa.out_arcs(fsa.start_state()) if arc[0] == ch}
+    num = len(new_init_states)
+    assert(num <= 1)
+    if num == 0:  # no such char to remove, return an empty FSA
+        return None
+    ret_fsa = deepcopy(fsa)
+    new_start = new_init_states.pop()
+    ret_fsa.set_start(new_start)
+    #if num == 1:  # just one arc found for the char to remove
+    #    assert(len(new_init_states) == 0)
+    #elif num > 1:  # add epsilon arc from the new start (PS: this case won't happen)
+    #    for s in new_init_states:
+    #        ret_fsa.add_arc(new_start, s)
+    #    ret_fsa.determinize()  # determinize before return
+    return ret_fsa
+
+
+def split_by_states(fsa: FSA) -> List[Tuple[FSA, FSA]]:
+    # assume fsa is deterministic
+    ret = list()
+    for s in fsa.states():
+        if fsa.is_start(s):  # in this case fsa1 shall be an empty FSA
+            fsa1, fsa2 = FSA(fsa.alphabet), deepcopy(fsa)
+            fsa1.set_final(fsa1.start_state())
+        else:
+            fsa1, fsa2 = deepcopy(fsa), deepcopy(fsa)
+            for f in fsa1.final_states():
+                fsa1.unset_final(f)
+            fsa1.set_final(s)
+            fsa2.set_start(s)
+        ret.append((fsa1, fsa2))
+    return ret
