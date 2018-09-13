@@ -41,6 +41,9 @@ class Term:
         return reduce((lambda acc, i: acc and not isinstance(i, Term)),
                       self.items, True)
 
+    def negate(self):
+        pass  # TODO
+
 
 class MultiDeclarationError(Exception):
     pass

@@ -263,6 +263,8 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
                 return [IntVariable(name)], ValueType.int
             elif known_type is ValueType.string:
                 return [StrVariable(name)], ValueType.string
+            elif known_type is ValueType.bool:
+                return None, ValueType.bool  # neglecting
             elif not known_type:
                 return name, ValueType.unknown
             # `ValueType.bool` not handled
@@ -284,7 +286,7 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
                         operands: TypedOperands) -> TypedSMTLIBTerm:
         assert len(operands) == 1
         t: Term = self.set_operands_type(term, operands, ValueType.bool)[0]
-        return t.negate(), ValueType.bool
+        return t.negate() if t else t, ValueType.bool
 
     def handle_string_equality(self, term: TermContext,
                                operands: TypedOperands) -> TypedSMTLIBTerm:
@@ -463,6 +465,8 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
         return list(map(lambda t: self.handle_term(t), terms))
 
     def assert_literal(self, item: Literal, ctx: SMTLIB26Parser.TermContext):
+        if not item:
+            return  # neglecting
         if isinstance(item, LengthConstraint):
             self.problem.add_length_constraint(item)
         elif isinstance(item, WordEquation):
