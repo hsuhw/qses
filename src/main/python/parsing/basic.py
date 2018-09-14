@@ -3,6 +3,7 @@ import antlr4
 import fsa
 import lenc
 import prob
+import token
 
 from functools import reduce
 from typing import List, Tuple, Union, Optional
@@ -30,11 +31,11 @@ def term_operator(term: TermContext) -> Optional[str]:
 class Syntax:
     @classmethod
     def is_conjunction(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'and'
+        return term_operator(term) == token.STR_THEORY_AND
 
     @classmethod
     def is_disjunction(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'or'
+        return term_operator(term) == token.STR_THEORY_OR
 
     @classmethod
     def is_negation(cls, term: SMTLIB26Parser.TermContext):
@@ -46,35 +47,35 @@ class Syntax:
 
     @classmethod
     def is_equality(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == '='
+        return term_operator(term) == token.STR_THEORY_EQ
 
     @classmethod
     def is_greater(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == '>'
+        return term_operator(term) == token.STR_THEORY_GT
 
     @classmethod
     def is_greater_equal(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == '>='
+        return term_operator(term) == token.STR_THEORY_GEQ
 
     @classmethod
     def is_less(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == '<'
+        return term_operator(term) == token.STR_THEORY_LT
 
     @classmethod
     def is_less_equal(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == '<='
+        return term_operator(term) == token.STR_THEORY_LEQ
 
     @classmethod
     def is_plus(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == '+'
+        return term_operator(term) == token.STR_THEORY_PLUS
 
     @classmethod
     def is_minus(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == '-'
+        return term_operator(term) == token.STR_THEORY_MINUS
 
     @classmethod
     def is_times(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == '*'
+        return term_operator(term) == token.STR_THEORY_TIMES
 
     @classmethod
     def is_string_concat(cls, term: SMTLIB26Parser.TermContext):
@@ -105,76 +106,76 @@ class Syntax:
         pass
 
     @classmethod
-    def is_regex_star(cls, term: SMTLIB26Parser.TermContext):
+    def is_regex_closure(cls, term: SMTLIB26Parser.TermContext):
         pass
 
 
 class Z3Str2Syntax(Syntax):
     @classmethod
     def is_string_concat(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'Concat'
+        return term_operator(term) == token.STR_THEORY_STR_CONCAT_V1
 
     @classmethod
     def is_string_length(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'Length'
+        return term_operator(term) == token.STR_THEORY_STR_LENGTH_V1
 
     @classmethod
     def is_string_contains(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'Contains'
+        return term_operator(term) == token.STR_THEORY_STR_CONTAINS_V1
 
     @classmethod
     def is_regex_membership(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'RegexIn'
+        return term_operator(term) == token.STR_THEORY_STR_IN_RE_V1
 
     @classmethod
     def is_regex_from_string(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'Str2Regex'
+        return term_operator(term) == token.STR_THEORY_RE_FROM_STR_V1
 
     @classmethod
     def is_regex_concat(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'RegexConcat'
+        return term_operator(term) == token.STR_THEORY_RE_CONCAT_V1
 
     @classmethod
     def is_regex_union(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'RegexUnion'
+        return term_operator(term) == token.STR_THEORY_RE_UNION_V1
 
     @classmethod
-    def is_regex_star(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'RegexStar'
+    def is_regex_closure(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == token.STR_THEORY_RE_CLOSURE_V1
 
 
 class Z3Str3Syntax(Syntax):
     @classmethod
     def is_string_concat(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'str.++'
+        return term_operator(term) == token.STR_THEORY_STR_CONCAT_V2
 
     @classmethod
     def is_string_length(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'str.len'
+        return term_operator(term) == token.STR_THEORY_STR_LENGTH_V2
 
     @classmethod
     def is_string_contains(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'str.contains'
+        return term_operator(term) == token.STR_THEORY_STR_CONTAINS_V2
 
     @classmethod
     def is_regex_membership(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'str.in.re'
+        return term_operator(term) == token.STR_THEORY_STR_IN_RE_V2
 
     @classmethod
     def is_regex_from_string(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 'str.to.re'
+        return term_operator(term) == token.STR_THEORY_RE_FROM_STR_V2
 
     @classmethod
     def is_regex_concat(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 're.++'
+        return term_operator(term) == token.STR_THEORY_RE_CONCAT_V2
 
     @classmethod
     def is_regex_union(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 're.union'
+        return term_operator(term) == token.STR_THEORY_RE_UNION_V2
 
     @classmethod
-    def is_regex_star(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == 're.*'
+    def is_regex_closure(cls, term: SMTLIB26Parser.TermContext):
+        return term_operator(term) == token.STR_THEORY_RE_CLOSURE_V2
 
 
 Z3STR2_SYNTAX = Z3Str2Syntax()
@@ -386,8 +387,8 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
                                                           ValueType.regex)
         return reduce(lambda x, y: x.union(y), ops), ValueType.regex
 
-    def handle_regex_star(self, term: SMTLIB26Parser.TermContext,
-                          operands: TypedOperands) -> TypedSMTLIBTerm:
+    def handle_regex_closure(self, term: SMTLIB26Parser.TermContext,
+                             operands: TypedOperands) -> TypedSMTLIBTerm:
         assert len(operands) == 1
         op: RegExpression = self.set_operands_type(term, operands,
                                                    ValueType.regex)[0]
@@ -422,8 +423,8 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
                     return self.handle_negation(term, operands)
                 elif self.syntax.is_regex_from_string(term):
                     return self.handle_regex_from_string(term)
-                elif self.syntax.is_regex_star(term):
-                    return self.handle_regex_star(term, operands)
+                elif self.syntax.is_regex_closure(term):
+                    return self.handle_regex_closure(term, operands)
             elif operand_num > 1:
                 if self.syntax.is_conjunction(term):
                     return self.handle_conjunction(term, operands)

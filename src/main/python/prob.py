@@ -5,6 +5,7 @@ from typing import Dict, List, Union
 from fsa import FSA, Alphabet
 from lenc import LengthConstraint, IntExpression
 from regc import RegularConstraint, RegExpression
+from token import INTERNAL_VAR_PREFIX
 from we import WordEquation, StrVariable, StrExpression
 
 
@@ -83,7 +84,7 @@ class Problem:
             self.declare_variable(length_var_name, ValueType.int)
 
     def new_variable(self, typ: ValueType) -> str:
-        name = f'xx_{typ.name}{self.internal_var_count}_'
+        name = f'{INTERNAL_VAR_PREFIX}{typ.name}{self.internal_var_count}_'
         self.variables[name] = typ
         self.internal_var_count += 1
         return name

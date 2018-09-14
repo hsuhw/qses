@@ -2,6 +2,7 @@ from typing import List, Tuple, Set, Optional
 from collections import Counter
 
 from lenc import IntConstant, IntVariable
+from token import INTERNAL_VAR_PREFIX
 
 
 class StrElement:
@@ -33,7 +34,7 @@ class StrVariable(StrElement):
         return f'V({self.value})'
 
     def length(self):
-        return IntVariable(f'xx_{self.value}_len_')
+        return IntVariable(f'{INTERNAL_VAR_PREFIX}{self.value}_len_')
 
 
 class Delimiter(StrElement):
