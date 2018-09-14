@@ -46,19 +46,17 @@ def all_fsa(alphabet: Alphabet):
 
 
 class FSA:
-    def __init__(self, alphabet=Alphabet()):
+    def __init__(self, alphabet: Alphabet = None):
         self._backend_obj = fst.Fst()
-        self._biggest_state = -1
         self.set_start(self.add_state())
-        self.alphabet = alphabet
+        self.alphabet = alphabet or Alphabet()
 
     def __deepcopy__(self, memo):
         if self in memo:
             return memo.get(self)
         dup = FSA(self.alphabet)
-        memo[self] = dup
         dup._backend_obj = self._backend_obj.copy()  # should be a deep copy
-        dup._biggest_state = self._biggest_state
+        memo[self] = dup
         return dup
 
     def __str__(self):
@@ -83,16 +81,17 @@ class FSA:
         return ''.join([start, finals, arcs])
 
     def __eq__(self, other: 'FSA'):
-        return fst.equivalent(self._backend_obj, other._backend_obj)
-
-    def __hash__(self):
-        return hash(repr(self))
+        return (other.alphabet is self.alphabet and
+                fst.equivalent(other._backend_obj, self._backend_obj))
 
     def states(self) -> Iterator[StateId]:
         return self._backend_obj.states()
 
+    def state_number(self):
+        self._backend_obj.prune()
+        return self._backend_obj.num_states()
+
     def add_state(self) -> StateId:
-        self._biggest_state += 1
         return self._backend_obj.add_state()
 
     def start_state(self) -> StateId:
@@ -129,62 +128,56 @@ class FSA:
         return ((s, sym, ns) for s in ss for sym, ns in self.out_arcs(s))
 
     def add_arc(self, dept: StateId, dest: StateId, symbol: Symbol = EPSILON):
-        assert dept <= self._biggest_state and dest <= self._biggest_state
+        biggest_state = self.state_number() - 1
+        assert dept <= biggest_state and dest <= biggest_state
         symbol_int = self.alphabet.take(symbol)
         arc = fst.Arc(symbol_int, symbol_int, TRUE, dest)
         self._backend_obj.add_arc(dept, arc)
         return self
 
-    def determinize(self, destructive=True) -> 'FSA':
+    def determinize(self, destructive=False) -> 'FSA':
         tgt = self if destructive else deepcopy(self)
-        tgt._backend_obj.rmepsilon()
-        # result = FSA(tgt.alphabet)
-        # result._backend_obj = fst.determinize(tgt._backend_obj)
+        tgt._backend_obj.rmepsilon()  # required by the backend
         tgt._backend_obj = fst.determinize(tgt._backend_obj)
-        # TODO: ensure `tgt.biggest_state` is correct
         return tgt
 
-    def minimize(self, destructive=True) -> 'FSA':
+    def minimize(self, destructive=False) -> 'FSA':
         tgt = self if destructive else deepcopy(self)
-        tgt._backend_obj.rmepsilon()
+        tgt._backend_obj.rmepsilon()  # required by the backend
         tgt._backend_obj.minimize(allow_nondet=True)
-        # TODO: ensure `tgt.biggest_state` is correct
         return tgt
 
-    def complement(self, destructive=True):
+    def complement(self):
         u = all_fsa(self.alphabet)._backend_obj
-        tgt = self.determinize(destructive)._backend_obj
-        result = self if destructive else FSA(self.alphabet)
+        tgt = self.determinize()._backend_obj
+        tgt.arcsort()  # required by the backend
+        result = FSA(self.alphabet)
         result._backend_obj = fst.difference(u, tgt)
         result._backend_obj.rmepsilon()
-        # TODO: ensure `tgt.biggest_state` is correct
         return result
 
-    def closure(self, destructive=True) -> 'FSA':
-        tgt = self if destructive else deepcopy(self)
-        tgt._backend_obj.closure()
-        # TODO: ensure `tgt.biggest_state` is correct
-        return tgt
+    def closure(self) -> 'FSA':
+        result = deepcopy(self)
+        result._backend_obj.closure()
+        return result
 
     def concat(self, fsa: 'FSA') -> 'FSA':
         assert fsa.alphabet == self.alphabet
         result = FSA(self.alphabet)
         result._backend_obj = self._backend_obj.concat(fsa._backend_obj)
-        # TODO: ensure `tgt.biggest_state` is correct
         return result
 
     def union(self, fsa: 'FSA') -> 'FSA':
         assert fsa.alphabet == self.alphabet
         result = FSA(self.alphabet)
         result._backend_obj = self._backend_obj.union(fsa._backend_obj)
-        # TODO: ensure `tgt.biggest_state` is correct
         return result
 
     def intersect(self, fsa: 'FSA') -> 'FSA':
         assert fsa.alphabet == self.alphabet
         result = FSA(self.alphabet)
+        self._backend_obj.arcsort()  # required by the backend
         result._backend_obj = fst.intersect(self._backend_obj, fsa._backend_obj)
-        # TODO: ensure `tgt.biggest_state` is correct
         return result
 
 
@@ -200,17 +193,18 @@ def from_str(s: str, alphabet=Alphabet()) -> FSA:
 
 
 def remove_first_char(fsa: FSA, ch: Symbol) -> [FSA]:
-    new_init_states = {arc[1] for arc in fsa.out_arcs(fsa.start_state()) if arc[0] == ch}
+    new_init_states = {arc[1] for arc in fsa.out_arcs(fsa.start_state()) if
+                       arc[0] == ch}
     num = len(new_init_states)
-    assert(num <= 1)
+    assert (num <= 1)
     if num == 0:  # no such char to remove, return an empty FSA
         return None
     ret_fsa = deepcopy(fsa)
     new_start = new_init_states.pop()
     ret_fsa.set_start(new_start)
-    #if num == 1:  # just one arc found for the char to remove
+    # if num == 1:  # just one arc found for the char to remove
     #    assert(len(new_init_states) == 0)
-    #elif num > 1:  # add epsilon arc from the new start (PS: this case won't happen)
+    # elif num > 1:  # add epsilon arc from the new start (PS: this case won't happen)
     #    for s in new_init_states:
     #        ret_fsa.add_arc(new_start, s)
     #    ret_fsa.determinize()  # determinize before return
