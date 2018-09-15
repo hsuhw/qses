@@ -1,7 +1,7 @@
 import pywrapfst as fst
 
 from copy import deepcopy
-from typing import Iterator, Tuple, List
+from typing import Iterator, Tuple, List, Dict, Set
 
 from bidict import bidict
 from util import nostderr
@@ -52,11 +52,11 @@ class FSA:
         self.alphabet = alphabet or Alphabet()
 
     def __deepcopy__(self, memo):
-        if self in memo:
-            return memo.get(self)
+        if id(self) in memo:
+            return memo.get(id(self))
         dup = FSA(self.alphabet)
         dup._backend_obj = self._backend_obj.copy()  # should be a deep copy
-        memo[self] = dup
+        memo[id(self)] = dup
         return dup
 
     def __str__(self):
@@ -84,11 +84,14 @@ class FSA:
         return (other.alphabet is self.alphabet and
                 fst.equivalent(other._backend_obj, self._backend_obj))
 
+    def __hash__(self):
+        return hash(self._backend_obj)
+
     def states(self) -> Iterator[StateId]:
         return self._backend_obj.states()
 
     def state_number(self):
-        self._backend_obj.prune()
+        #self._backend_obj.prune()
         return self._backend_obj.num_states()
 
     def add_state(self) -> StateId:
@@ -181,6 +184,33 @@ class FSA:
         return result
 
 
+FSA_classes = Dict[int, Set[FSA]]
+
+
+class FsaClassification:
+    def __init__(self):
+        self.fsa_classes: [FSA_classes] = None
+        self.num_classes = 0
+
+    def get_classification(self, fsa: FSA) -> int:
+        if not self.fsa_classes:
+            self.num_classes = 1
+            self.fsa_classes = dict()
+            self.fsa_classes[self.num_classes] = {fsa}
+            return self.num_classes
+        # check existing FSA classes
+        for i in self.fsa_classes:
+            for f in self.fsa_classes[i]:
+                if fsa == f:
+                    self.fsa_classes[i].add(fsa)
+                    return i
+                else:
+                    break
+        # new class
+        self.num_classes += 1
+        self.fsa_classes[self.num_classes] = {fsa}
+
+
 def from_str(s: str, alphabet=Alphabet()) -> FSA:
     result = FSA(alphabet)
     curr_state = result.start_state()
@@ -202,6 +232,7 @@ def remove_first_char(fsa: FSA, ch: Symbol) -> [FSA]:
     ret_fsa = deepcopy(fsa)
     new_start = new_init_states.pop()
     ret_fsa.set_start(new_start)
+    ret_fsa = ret_fsa.minimize()
     # if num == 1:  # just one arc found for the char to remove
     #    assert(len(new_init_states) == 0)
     # elif num > 1:  # add epsilon arc from the new start (PS: this case won't happen)
@@ -223,6 +254,8 @@ def split_by_states(fsa: FSA) -> List[Tuple[FSA, FSA]]:
             for f in fsa1.final_states():
                 fsa1.unset_final(f)
             fsa1.set_final(s)
+            fsa1 = fsa1.minimize()
             fsa2.set_start(s)
+            fsa2 = fsa2.minimize()
         ret.append((fsa1, fsa2))
     return ret
