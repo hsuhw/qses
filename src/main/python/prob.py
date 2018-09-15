@@ -5,9 +5,10 @@ from typing import Dict, List, Union
 from fsa import FSA, Alphabet
 from lenc import LengthConstraint, IntExpression
 from regc import RegularConstraint, RegExpression
-from token import INTERNAL_VAR_PREFIX
+from python.token import INTERNAL_VAR_PREFIX
 from we import WordEquation, StrVariable, StrExpression
 
+#INTERNAL_VAR_PREFIX = 'xx_'
 
 @unique
 class ValueType(Enum):

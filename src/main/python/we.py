@@ -2,7 +2,8 @@ from typing import List, Tuple, Set, Optional
 from collections import Counter
 
 from lenc import IntConstant, IntVariable
-from token import INTERNAL_VAR_PREFIX
+from python.token import INTERNAL_VAR_PREFIX
+#INTERNAL_VAR_PREFIX = 'xx_'
 
 
 class StrElement:

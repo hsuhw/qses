@@ -3,7 +3,7 @@ import antlr4
 import fsa
 import lenc
 import prob
-import token
+import python.token as token
 
 from functools import reduce
 from typing import List, Tuple, Union, Optional
