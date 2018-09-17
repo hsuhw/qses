@@ -209,6 +209,7 @@ class FsaClassification:
         # new class
         self.num_classes += 1
         self.fsa_classes[self.num_classes] = {fsa}
+        return self.num_classes
 
 
 def from_str(s: str, alphabet=Alphabet()) -> FSA:
