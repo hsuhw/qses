@@ -3,7 +3,7 @@ import antlr4
 import fsa
 import lenc
 import prob
-import python.token as token
+import tok
 
 from functools import reduce
 from typing import List, Tuple, Union, Optional
@@ -31,11 +31,11 @@ def term_operator(term: TermContext) -> Optional[str]:
 class Syntax:
     @classmethod
     def is_conjunction(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_AND
+        return term_operator(term) == tok.STR_THEORY_AND
 
     @classmethod
     def is_disjunction(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_OR
+        return term_operator(term) == tok.STR_THEORY_OR
 
     @classmethod
     def is_negation(cls, term: SMTLIB26Parser.TermContext):
@@ -47,35 +47,35 @@ class Syntax:
 
     @classmethod
     def is_equality(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_EQ
+        return term_operator(term) == tok.STR_THEORY_EQ
 
     @classmethod
     def is_greater(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_GT
+        return term_operator(term) == tok.STR_THEORY_GT
 
     @classmethod
     def is_greater_equal(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_GEQ
+        return term_operator(term) == tok.STR_THEORY_GEQ
 
     @classmethod
     def is_less(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_LT
+        return term_operator(term) == tok.STR_THEORY_LT
 
     @classmethod
     def is_less_equal(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_LEQ
+        return term_operator(term) == tok.STR_THEORY_LEQ
 
     @classmethod
     def is_plus(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_PLUS
+        return term_operator(term) == tok.STR_THEORY_PLUS
 
     @classmethod
     def is_minus(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_MINUS
+        return term_operator(term) == tok.STR_THEORY_MINUS
 
     @classmethod
     def is_times(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_TIMES
+        return term_operator(term) == tok.STR_THEORY_TIMES
 
     @classmethod
     def is_string_concat(cls, term: SMTLIB26Parser.TermContext):
@@ -113,69 +113,69 @@ class Syntax:
 class Z3Str2Syntax(Syntax):
     @classmethod
     def is_string_concat(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_STR_CONCAT_V1
+        return term_operator(term) == tok.STR_THEORY_STR_CONCAT_V1
 
     @classmethod
     def is_string_length(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_STR_LENGTH_V1
+        return term_operator(term) == tok.STR_THEORY_STR_LENGTH_V1
 
     @classmethod
     def is_string_contains(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_STR_CONTAINS_V1
+        return term_operator(term) == tok.STR_THEORY_STR_CONTAINS_V1
 
     @classmethod
     def is_regex_membership(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_STR_IN_RE_V1
+        return term_operator(term) == tok.STR_THEORY_STR_IN_RE_V1
 
     @classmethod
     def is_regex_from_string(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_RE_FROM_STR_V1
+        return term_operator(term) == tok.STR_THEORY_RE_FROM_STR_V1
 
     @classmethod
     def is_regex_concat(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_RE_CONCAT_V1
+        return term_operator(term) == tok.STR_THEORY_RE_CONCAT_V1
 
     @classmethod
     def is_regex_union(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_RE_UNION_V1
+        return term_operator(term) == tok.STR_THEORY_RE_UNION_V1
 
     @classmethod
     def is_regex_closure(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_RE_CLOSURE_V1
+        return term_operator(term) == tok.STR_THEORY_RE_CLOSURE_V1
 
 
 class Z3Str3Syntax(Syntax):
     @classmethod
     def is_string_concat(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_STR_CONCAT_V2
+        return term_operator(term) == tok.STR_THEORY_STR_CONCAT_V2
 
     @classmethod
     def is_string_length(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_STR_LENGTH_V2
+        return term_operator(term) == tok.STR_THEORY_STR_LENGTH_V2
 
     @classmethod
     def is_string_contains(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_STR_CONTAINS_V2
+        return term_operator(term) == tok.STR_THEORY_STR_CONTAINS_V2
 
     @classmethod
     def is_regex_membership(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_STR_IN_RE_V2
+        return term_operator(term) == tok.STR_THEORY_STR_IN_RE_V2
 
     @classmethod
     def is_regex_from_string(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_RE_FROM_STR_V2
+        return term_operator(term) == tok.STR_THEORY_RE_FROM_STR_V2
 
     @classmethod
     def is_regex_concat(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_RE_CONCAT_V2
+        return term_operator(term) == tok.STR_THEORY_RE_CONCAT_V2
 
     @classmethod
     def is_regex_union(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_RE_UNION_V2
+        return term_operator(term) == tok.STR_THEORY_RE_UNION_V2
 
     @classmethod
     def is_regex_closure(cls, term: SMTLIB26Parser.TermContext):
-        return term_operator(term) == token.STR_THEORY_RE_CLOSURE_V2
+        return term_operator(term) == tok.STR_THEORY_RE_CLOSURE_V2
 
 
 Z3STR2_SYNTAX = Z3Str2Syntax()
