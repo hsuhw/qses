@@ -2,7 +2,7 @@ from typing import List, Tuple, Set, Optional
 from collections import Counter
 
 from lenc import IntConstant, IntVariable
-from tok import INTERNAL_VAR_PREFIX
+from tok import INTERNAL_VAR_PREFIX, INTERNAL_LEN_VAR_POSTFIX
 
 
 class StrElement:
@@ -21,7 +21,7 @@ class StrElement:
         return hash(str(self))
 
     def length(self):  # TODO: do it symbolically or concretely?
-        return IntVariable(0)
+        return IntVariable(0)  # dummy value
 
 
 class Character(StrElement):
@@ -34,7 +34,8 @@ class StrVariable(StrElement):
         return f'V({self.value})'
 
     def length(self):
-        return IntVariable(f'{INTERNAL_VAR_PREFIX}{self.value}_len_')
+        name = f'{INTERNAL_VAR_PREFIX}{self.value}{INTERNAL_LEN_VAR_POSTFIX}'
+        return IntVariable(name)
 
 
 class Delimiter(StrElement):

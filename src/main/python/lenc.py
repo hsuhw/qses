@@ -1,5 +1,8 @@
+import tok
+
 from enum import Enum, unique
-from typing import List, Tuple, Set, Union
+from re import compile
+from typing import List, Tuple, Set, Union, Optional
 
 
 class IntElement:
@@ -84,6 +87,15 @@ def not_const_expr(e: IntExpression):
     return not is_const_expr(e)
 
 
+internal_len_var_name = compile(
+    f'{tok.INTERNAL_VAR_PREFIX}(.*){tok.INTERNAL_LEN_VAR_POSTFIX}')
+
+
+def length_origin_name(e: IntElement) -> Optional[str]:
+    result = internal_len_var_name.match(e.value)
+    return result.group(1) if result else None
+
+
 @unique
 class Relation(Enum):
     equal = '=='
@@ -106,23 +118,36 @@ negation = {
 
 def reduce_constants(expr: IntExpression) -> IntExpression:
     """ Constant (if any) will be the last element in the returned list. """
-    result = []
-    acc = 0
+    acc = {'1': 0}  # dummy key for constant sum
     for e in expr:
         if isinstance(e, IntConstant):
-            acc += e.value
+            acc['1'] += e.value
         else:
-            result.append(e)
-    result.append(IntConstant(acc)) if acc != 0 else None
+            v = e.value
+            acc[v] = acc[v] + e.coefficient if v in acc else e.coefficient
+    result = []
+    for var, c in acc.items():
+        if c == 0 or var == '1':
+            continue
+        else:
+            result.append(IntVariable(var, c))
+    result.append(IntConstant(acc['1'])) if acc['1'] != 0 else None
     return result if result else [IntConstant(0)]
 
 
 def simplify_equation(lhs: IntExpression, rhs: IntExpression) \
         -> Tuple[IntExpression, IntExpression]:
-    le, re = reduce_constants(lhs), rhs
-    if isinstance(le[-1], IntConstant) and len(le) > 1:
+    le = reduce_constants(lhs + [e.opposite() for e in rhs])
+    re = []
+    shift_to_right = set()
+    for e in le:
+        if is_var(e) and e.coefficient < 0:
+            re.append(e.opposite())
+            shift_to_right.add(e)
+    le = [e for e in le if e not in shift_to_right]
+    if is_const(le[-1]) and len(le) > 1:
         re.append(le.pop().opposite())
-    return le, reduce_constants(re)
+    return le, (re if re else [IntConstant(0)])
 
 
 class LengthConstraint:
