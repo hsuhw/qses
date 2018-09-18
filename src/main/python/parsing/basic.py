@@ -357,8 +357,8 @@ class BasicProblemBuilder(SMTLIB26ParserListener):
         assert len(operands) == 2
         ops: List[IntExpression] = self.set_operands_type(term, operands,
                                                           ValueType.int)
-        op1: IntExpression = lenc.reduce_constants(ops[0])
-        op2: IntExpression = lenc.reduce_constants(ops[1])
+        op1: IntExpression = lenc.reduce_in_arithmetic(ops[0])
+        op2: IntExpression = lenc.reduce_in_arithmetic(ops[1])
         if lenc.is_const_expr(op1):
             return [e.multiply(op1[0].value) for e in op2], ValueType.int
         elif lenc.is_const_expr(op2):

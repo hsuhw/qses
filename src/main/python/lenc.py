@@ -115,40 +115,38 @@ negation = {
     Relation.less_equal: Relation.greater,
 }
 
+CONST_TERM_KEY = '1'  # a number would never be a variable name
 
-def reduce_constants(expr: IntExpression) -> IntExpression:
+
+def reduce_in_arithmetic(expr: IntExpression) -> IntExpression:
     """ Constant (if any) will be the last element in the returned list. """
-    acc = {'1': 0}  # dummy key for constant sum
+    acc = {CONST_TERM_KEY: 0}
     for e in expr:
-        if isinstance(e, IntConstant):
-            acc['1'] += e.value
+        if is_const(e):
+            acc[CONST_TERM_KEY] += e.value
         else:
             v = e.value
             acc[v] = acc[v] + e.coefficient if v in acc else e.coefficient
     result = []
     for var, c in acc.items():
-        if c == 0 or var == '1':
-            continue
-        else:
+        if var != CONST_TERM_KEY and c != 0:
             result.append(IntVariable(var, c))
-    result.append(IntConstant(acc['1'])) if acc['1'] != 0 else None
-    return result if result else [IntConstant(0)]
+    if acc[CONST_TERM_KEY] != 0:
+        result.append(IntConstant(acc[CONST_TERM_KEY]))
+    return result or [IntConstant(0)]
 
 
 def simplify_equation(lhs: IntExpression, rhs: IntExpression) \
         -> Tuple[IntExpression, IntExpression]:
-    le = reduce_constants(lhs + [e.opposite() for e in rhs])
+    le = reduce_in_arithmetic(lhs + [e.opposite() for e in rhs])
     re = []
-    shift_to_right = set()
+    shift_to_right: Set[IntElement] = set()
     for e in le:
-        if is_var(e) and e.coefficient < 0:
+        if (is_var(e) and e.coefficient < 0) or (is_const(e) and e.value < 0):
             re.append(e.opposite())
             shift_to_right.add(e)
     le = [e for e in le if e not in shift_to_right]
-    if len(le) > 0:
-        if is_const(le[-1]) and len(le) > 1:
-            re.append(le.pop().opposite())
-    return le, (re if re else [IntConstant(0)])
+    return (le or [IntConstant(0)]), (re or [IntConstant(0)])
 
 
 class LengthConstraint:
