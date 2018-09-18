@@ -2,11 +2,13 @@ import re
 
 import lenc
 import tok
+import we
 
 from typing import TextIO
 
 from lenc import IntExpression, Relation
 from prob import Problem, ValueType
+from we import StrExpression
 
 
 class Syntax:
@@ -233,12 +235,44 @@ class SMTLIBLayout:
                 c = f'({self.syntax.relation_label[lc.relation]} {lhs} {rhs})'
             print(f'(assert {c})', file=dest)
 
-    def render_str_expression(self):
-        pass
+    def render_str_expression(self, expr: StrExpression):
+        result = []
+        curr_str = ''
+        in_str = False
+        for e in expr:
+            if in_str and we.is_var(e):
+                in_str = False
+                result.append(f'"{curr_str}"')
+                curr_str = ''
+            if we.is_var(e):
+                result.append(e.value)
+            if we.is_char(e):
+                in_str = True
+                curr_str += e.value
+        if len(result) <= 1:
+            return result[0]
+        else:
+            return f'({self.syntax.string_concat()} {" ".join(result)})'
+
+    def print_word_equations(self, dest: TextIO):
+        wes = self.problem.word_equations
+        wes = self.problem.word_equations[0].split() if len(wes) == 1 else wes
+        for w in wes:
+            lhs = self.render_str_expression(w.lhs)
+            rhs = self.render_str_expression(w.rhs)
+            if w.negation:
+                neg = self.syntax.negation()
+                eq = self.syntax.equality()
+                c = f'({neg} ({eq} {lhs} {rhs}))'
+            else:
+                c = f'({self.syntax.equality()} {lhs} {rhs})'
+            print(f'(assert {c})', file=dest)
 
     def print(self, dest: TextIO):
         self.print_variable_declarations(dest)
         self.print_len_constraints(dest)
+        self.print_word_equations(dest)
+        print(f'(check-sat)', file=dest)
 
 
 def to_file(prob: Problem, file_path: str, syntax: Syntax = Z3STR3_SYNTAX):

@@ -80,6 +80,18 @@ def not_del(e: StrElement):
     return not is_del(e)
 
 
+def split_expression(expr: StrExpression) -> List[StrExpression]:
+    result = []
+    curr_list = []
+    for e in expr:
+        if is_del(e):
+            result.append(curr_list)
+            curr_list = []
+            continue
+        curr_list.append(e)
+    return result
+
+
 class WordEquation:
     def __init__(self, lhs: StrExpression, rhs: StrExpression,
                  neg: bool = False):
@@ -144,23 +156,34 @@ class WordEquation:
         return not lh or not rh or is_del(lh) or is_del(rh)
 
     def merge(self, other: 'WordEquation') -> 'WordEquation':
+        assert not other.negation and not self.negation
         lhs, rhs = self.copy_expressions()
         lhs.append(DELIMITER)
         rhs.append(DELIMITER)
         return WordEquation(lhs + other.lhs, rhs + other.rhs)
 
+    def split(self) -> List['WordEquation']:
+        assert not self.negation
+        left_parts = split_expression(self.lhs)
+        right_parts = split_expression(self.rhs)
+        assert len(left_parts) == len(right_parts)
+        result = []
+        for lhs, rhs in zip(left_parts, right_parts):
+            result.append(WordEquation(lhs, rhs))
+        return result
+
     def remove_heads(self) -> 'WordEquation':
-        return WordEquation(self.lhs[1:], self.rhs[1:])
+        return WordEquation(self.lhs[1:], self.rhs[1:], self.negation)
 
     def remove_left_head_from_all(self) -> 'WordEquation':
         lh = self.lhs[0]
         return WordEquation([e for e in self.lhs if e != lh],
-                            [e for e in self.rhs if e != lh])
+                            [e for e in self.rhs if e != lh], self.negation)
 
     def remove_right_head_from_all(self) -> 'WordEquation':
         rh = self.rhs[0]
         return WordEquation([e for e in self.lhs if e != rh],
-                            [e for e in self.rhs if e != rh])
+                            [e for e in self.rhs if e != rh], self.negation)
 
     def trim_prefix(self) -> 'WordEquation':
         lhs, rhs = self.copy_expressions()
@@ -170,15 +193,17 @@ class WordEquation:
             lhs.pop(0)
             rhs.pop(0)
             lh, rh = heads_or_none(lhs, rhs)
-        return WordEquation(lhs, rhs)
+        return WordEquation(lhs, rhs, self.negation)
 
     def replace(self, tgt: StrElement, subst: StrElement) -> 'WordEquation':
         return WordEquation([(subst if e == tgt else e) for e in self.lhs],
-                            [(subst if e == tgt else e) for e in self.rhs])
+                            [(subst if e == tgt else e) for e in self.rhs],
+                            self.negation)
 
     def replace_with(self, tgt: StrElement, subst: List[StrElement]) \
             -> 'WordEquation':
         lhs_hoisted = [(subst if e == tgt else [e]) for e in self.lhs]
         rhs_hoisted = [(subst if e == tgt else [e]) for e in self.rhs]
         return WordEquation([e for sublist in lhs_hoisted for e in sublist],
-                            [e for sublist in rhs_hoisted for e in sublist])
+                            [e for sublist in rhs_hoisted for e in sublist],
+                            self.negation)
