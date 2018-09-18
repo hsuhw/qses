@@ -145,8 +145,9 @@ def simplify_equation(lhs: IntExpression, rhs: IntExpression) \
             re.append(e.opposite())
             shift_to_right.add(e)
     le = [e for e in le if e not in shift_to_right]
-    if is_const(le[-1]) and len(le) > 1:
-        re.append(le.pop().opposite())
+    if len(le) > 0:
+        if is_const(le[-1]) and len(le) > 1:
+            re.append(le.pop().opposite())
     return le, (re if re else [IntConstant(0)])
 
 
