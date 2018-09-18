@@ -159,6 +159,12 @@ class FSA:
         result._backend_obj.rmepsilon()
         return result
 
+    def prune(self):
+        self._backend_obj.prune()
+
+    def is_empty(self):
+        return self.start_state() == -1
+
     def closure(self) -> 'FSA':
         result = deepcopy(self)
         result._backend_obj.closure()
