@@ -1,5 +1,3 @@
-import re
-
 import lenc
 import tok
 import we
@@ -176,8 +174,6 @@ Z3STR3_SYNTAX = Z3Str3Syntax()
 
 
 class SMTLIBLayout:
-    internal_var_name = re.compile(f'{tok.INTERNAL_VAR_PREFIX}.*')
-
     def __init__(self, problem: Problem, syntax: Syntax):
         self.syntax: Syntax = syntax
         self.problem: Problem = problem
@@ -185,7 +181,7 @@ class SMTLIBLayout:
     def print_variable_declarations(self, dest: TextIO):
         for name, typ in self.problem.variables.items():
             if (typ is ValueType.bool
-                    or SMTLIBLayout.internal_var_name.match(name)):
+                    or lenc.internal_len_var_name.match(name)):
                 continue
             t = self.syntax.type_label[typ]
             print(f'(declare-fun {name} () {t})', file=dest)

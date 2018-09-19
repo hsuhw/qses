@@ -83,9 +83,10 @@ class Problem:
             length_var_name = StrVariable(name).length().value
             self.declare_variable(length_var_name, ValueType.int)
 
-    def new_variable(self, typ: ValueType) -> str:
-        name = f'{INTERNAL_VAR_PREFIX}{typ.name}{self.internal_var_count}_'
-        self.variables[name] = typ
+    def new_variable(self, typ: ValueType, note: str = None) -> str:
+        n = f'_{note}' if note else ''
+        name = f'{INTERNAL_VAR_PREFIX}{typ.name}{n}{self.internal_var_count}'
+        self.declare_variable(name, typ)
         self.internal_var_count += 1
         return name
 
@@ -97,6 +98,10 @@ class Problem:
         for var in we.variables():
             self.ensure_variable_known(var.value, ValueType.string)
         self.word_equations.append(we)
+
+    def merge_all_word_equations(self):
+        self.word_equations = [reduce(lambda x, y: x.merge(y),
+                                      self.word_equations)]
 
     def add_regular_constraint(self, cons: RegularConstraint):
         assert cons.nfa.alphabet == self.alphabet

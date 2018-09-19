@@ -1,3 +1,5 @@
+import tok
+
 from typing import List, Tuple, Set, Optional
 from collections import Counter
 
@@ -34,8 +36,8 @@ class StrVariable(StrElement):
         return f'V({self.value})'
 
     def length(self):
-        name = f'{INTERNAL_VAR_PREFIX}{self.value}{INTERNAL_LEN_VAR_POSTFIX}'
-        return IntVariable(name)
+        n = f'{INTERNAL_VAR_PREFIX}{self.value}{INTERNAL_LEN_VAR_POSTFIX}'
+        return IntVariable(n)
 
 
 class Delimiter(StrElement):
@@ -89,6 +91,7 @@ def split_expression(expr: StrExpression) -> List[StrExpression]:
             curr_list = []
             continue
         curr_list.append(e)
+    result.append(curr_list) if curr_list else None
     return result
 
 

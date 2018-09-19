@@ -3,8 +3,9 @@ from functools import reduce
 from typing import List, Tuple, Dict, Set, Optional
 
 from graphviz import Digraph
-from prob import Problem
-from we import WordEquation, StrElement, is_var, is_del, not_del
+from lenc import LengthConstraint
+from prob import Problem, ValueType
+from we import WordEquation, StrElement, StrVariable, is_var, is_del, not_del
 
 
 @unique
@@ -76,10 +77,8 @@ class BasicSolver:
     def __init__(self, prob: Problem):
         if len(prob.word_equations) < 1:
             raise InvalidProblemError()
-        if len(prob.word_equations) > 1:
-            we = reduce(lambda x, y: x.merge(y), prob.word_equations)
-        else:
-            we = prob.word_equations[0]
+        prob.merge_all_word_equations()
+        we = prob.word_equations[0]
         self.pending_checks: List[WordEquation] = [we]
         self.resolve: SolveTree = SolveTree(we)
 
@@ -167,6 +166,55 @@ class BasicSolver:
             else:
                 assert False
         return self.resolve
+
+
+def turn_to_linear_we(prob: Problem, we: WordEquation = None):
+    tgt_we = we or prob.word_equations[0]
+    occurred_var: Set[StrElement] = set()
+
+    def _turn_to_linear(expr):
+        for index, e in enumerate(expr):
+            if e in occurred_var:
+                var_copy_name = prob.new_variable(ValueType.string, e.value)
+                e_copy = StrVariable(var_copy_name)
+                expr[index] = e_copy
+                lc = LengthConstraint([e.length()], [e_copy.length()])
+                prob.add_length_constraint(lc)
+                reg_cons = prob.reg_constraints
+                if e.value in reg_cons:
+                    reg_cons[e_copy.value] = reg_cons[e.value]
+            elif is_var(e):
+                occurred_var.add(e)
+
+    _turn_to_linear(tgt_we.lhs)
+    _turn_to_linear(tgt_we.rhs)
+
+
+def turn_to_quadratic_we(prob: Problem, we: WordEquation = None):
+    tgt_we = we or prob.word_equations[0]
+    occurred_var_count: Dict[StrElement, int] = dict()
+    curr_var_copies: Dict[StrElement, StrElement] = dict()
+
+    def _turn_to_quadratic(expr):
+        for index, e in enumerate(expr):
+            if e in occurred_var_count:
+                occurred_var_count[e] += 1
+                if occurred_var_count[e] % 2 == 1:
+                    var_copy_name = prob.new_variable(ValueType.string, e.value)
+                    e_copy = StrVariable(var_copy_name)
+                    curr_var_copies[e] = e_copy
+                    lc = LengthConstraint([e.length()], [e_copy.length()])
+                    prob.add_length_constraint(lc)
+                    reg_cons = prob.reg_constraints
+                    if e.value in reg_cons:
+                        reg_cons[e_copy.value] = reg_cons[e.value]
+                expr[index] = curr_var_copies[e]
+            elif is_var(e):
+                occurred_var_count[e] = 1
+                curr_var_copies[e] = e
+
+    _turn_to_quadratic(tgt_we.lhs)
+    _turn_to_quadratic(tgt_we.rhs)
 
 
 # functions for output: pretty print, c program, graphviz, etc.
@@ -315,7 +363,9 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: List[str]):
     node_count = 0
 
     # open a file for writing code
-    fp = open(f'{print_word_equation_pretty(tree.root).replace("=", "-")}_{type}.c',"w")
+    fp = open(
+        f'{print_word_equation_pretty(tree.root).replace("=", "-")}_{type}.c',
+        "w")
 
     # variable declaration
     if type == 'interProc':
@@ -326,7 +376,8 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: List[str]):
         fp.write('nodeNo: int,\n')
         fp.write('reachFinal: int;\n')
     elif type == 'UAutomizerC':
-        fp.write('extern void __VERIFIER_error() __attribute__ ((__noreturn__));\n')
+        fp.write(
+            'extern void __VERIFIER_error() __attribute__ ((__noreturn__));\n')
         fp.write('extern int __VERIFIER_nondet_int(void);\n')
         fp.write('\n')
         fp.write('int main() {\n')
@@ -361,11 +412,13 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: List[str]):
         if tmp_node == init:  # this is the initial node
             fp.write(f'    if (nodeNo=={node_count}) {if_start}\n')
             # node_count = 0 (the first loop)
-            fp.write(f'    /* node = {print_word_equation_pretty(tmp_node)} */\n')
+            fp.write(
+                f'    /* node = {print_word_equation_pretty(tmp_node)} */\n')
         else:
             fp.write(f'    if (nodeNo=={node2_count[tmp_node]}) {if_start}\n')
             # node2_count must has key "tmp_node"
-            fp.write(f'    /* node = {print_word_equation_pretty(tmp_node)} */\n')
+            fp.write(
+                f'    /* node = {print_word_equation_pretty(tmp_node)} */\n')
             if tmp_node == final:  # this is the final node
                 fp.write('      reachFinal=1;\n')
                 fp.write(f'    {if_end}\n')

@@ -1,3 +1,4 @@
+import re
 
 STR_THEORY_AND = 'and'
 STR_THEORY_OR = 'or'
@@ -28,4 +29,6 @@ STR_THEORY_RE_CLOSURE_V1 = 'RegexStar'
 STR_THEORY_RE_CLOSURE_V2 = 're.*'
 
 INTERNAL_VAR_PREFIX = 'xx_'
-INTERNAL_LEN_VAR_POSTFIX = '_len_'
+INTERNAL_LEN_VAR_POSTFIX = '_len'
+
+internal_var_name = re.compile(f'{INTERNAL_VAR_PREFIX}.*')
