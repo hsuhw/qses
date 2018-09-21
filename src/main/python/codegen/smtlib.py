@@ -6,7 +6,7 @@ from typing import TextIO
 
 from lenc import IntExpression, Relation
 from prob import Problem, ValueType
-from we import StrExpression
+from we import WordEquation, StrExpression
 
 
 class Syntax:
@@ -252,7 +252,13 @@ class SMTLIBLayout:
 
     def print_word_equations(self, dest: TextIO):
         wes = self.problem.word_equations
-        wes = self.problem.word_equations[0].split() if len(wes) == 1 else wes
+        if len(wes) == 1:
+            expr_pairs = [e for e in self.problem.word_equations[0].split()]
+            inequality_memo = self.problem.we_inequality_memo
+            assert len(expr_pairs) == len(inequality_memo)
+            wes = []
+            for index, (lhs, rhs) in enumerate(expr_pairs):
+                wes.append(WordEquation(lhs, rhs, inequality_memo[index]))
         for w in wes:
             lhs = self.render_str_expression(w.lhs)
             rhs = self.render_str_expression(w.rhs)
@@ -264,10 +270,21 @@ class SMTLIBLayout:
                 c = f'({self.syntax.equality()} {lhs} {rhs})'
             print(f'(assert {c})', file=dest)
 
+    def print_reg_constraints(self, dest: TextIO):
+        for var_name, (regex, neg) in self.problem.reg_constraint_src.items():
+            if neg:
+                neg = self.syntax.negation()
+                mem = self.syntax.regex_membership()
+                c = f'({neg} ({mem} {var_name} {regex}))'
+            else:
+                c = f'({self.syntax.regex_membership()} {var_name} {regex})'
+            print(f'(assert {c})', file=dest)
+
     def print(self, dest: TextIO):
         self.print_variable_declarations(dest)
         self.print_len_constraints(dest)
         self.print_word_equations(dest)
+        self.print_reg_constraints(dest)
         print(f'(check-sat)', file=dest)
 
 

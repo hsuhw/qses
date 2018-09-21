@@ -1,6 +1,4 @@
-import tok
-
-from typing import List, Tuple, Set, Optional
+from typing import List, Tuple, Set, Optional, Iterator
 from collections import Counter
 
 from lenc import IntConstant, IntVariable
@@ -162,21 +160,17 @@ class WordEquation:
         return not lh or not rh or is_del(lh) or is_del(rh)
 
     def merge(self, other: 'WordEquation') -> 'WordEquation':
-        assert not other.negation and not self.negation
+        # assert not other.negation and not self.negation
         lhs, rhs = self.copy_expressions()
         lhs.append(DELIMITER)
         rhs.append(DELIMITER)
         return WordEquation(lhs + other.lhs, rhs + other.rhs)
 
-    def split(self) -> List['WordEquation']:
-        assert not self.negation
+    def split(self) -> Iterator[Tuple[StrExpression, StrExpression]]:
         left_parts = split_expression(self.lhs)
         right_parts = split_expression(self.rhs)
         assert len(left_parts) == len(right_parts)
-        result = []
-        for lhs, rhs in zip(left_parts, right_parts):
-            result.append(WordEquation(lhs, rhs))
-        return result
+        return zip(left_parts, right_parts)
 
     def remove_heads(self) -> 'WordEquation':
         return WordEquation(self.lhs[1:], self.rhs[1:], self.negation)

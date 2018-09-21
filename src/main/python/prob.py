@@ -4,7 +4,7 @@ from typing import Dict, List, Union
 
 from fsa import FSA, Alphabet
 from lenc import LengthConstraint, IntExpression
-from regc import RegularConstraint, RegExpression
+from regc import RegularConstraint, RegExpression, RegOrigin
 from tok import INTERNAL_VAR_PREFIX
 from we import WordEquation, StrVariable, StrExpression
 
@@ -72,7 +72,9 @@ class Problem:
         self.internal_var_count: int = 0
         self.alphabet = Alphabet()
         self.word_equations: List[WordEquation] = []
+        self.we_inequality_memo: List[bool] = []
         self.reg_constraints: Dict[str, FSA] = {}
+        self.reg_constraint_src: Dict[str, RegOrigin] = {}
         self.len_constraints: List[LengthConstraint] = []
 
     def declare_variable(self, name: str, typ: ValueType):
@@ -98,6 +100,7 @@ class Problem:
         for var in we.variables():
             self.ensure_variable_known(var.value, ValueType.string)
         self.word_equations.append(we)
+        self.we_inequality_memo.append(we.negation)
 
     def merge_all_word_equations(self):
         self.word_equations = [reduce(lambda x, y: x.merge(y),
@@ -107,6 +110,7 @@ class Problem:
         assert cons.nfa.alphabet == self.alphabet
         self.ensure_variable_known(cons.str_var, ValueType.string)
         self.reg_constraints[cons.str_var] = cons.nfa
+        self.reg_constraint_src[cons.str_var] = cons.origin
 
     def add_length_constraint(self, cons: LengthConstraint):
         for var in cons.variables():

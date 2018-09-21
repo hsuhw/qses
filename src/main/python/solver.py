@@ -181,8 +181,10 @@ def turn_to_linear_we(prob: Problem, we: WordEquation = None):
                 lc = LengthConstraint([e.length()], [e_copy.length()])
                 prob.add_length_constraint(lc)
                 reg_cons = prob.reg_constraints
+                reg_cons_src = prob.reg_constraint_src
                 if e.value in reg_cons:
                     reg_cons[e_copy.value] = reg_cons[e.value]
+                    reg_cons_src[e_copy.value] = reg_cons_src[e.value]
             elif is_var(e):
                 occurred_var.add(e)
 
@@ -206,8 +208,10 @@ def turn_to_quadratic_we(prob: Problem, we: WordEquation = None):
                     lc = LengthConstraint([e.length()], [e_copy.length()])
                     prob.add_length_constraint(lc)
                     reg_cons = prob.reg_constraints
+                    reg_cons_src = prob.reg_constraint_src
                     if e.value in reg_cons:
                         reg_cons[e_copy.value] = reg_cons[e.value]
+                        reg_cons_src[e_copy.value] = reg_cons_src[e.value]
                 expr[index] = curr_var_copies[e]
             elif is_var(e):
                 occurred_var_count[e] = 1
