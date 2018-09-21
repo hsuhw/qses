@@ -4,6 +4,7 @@
 (declare-fun PCTEMP_LHS_2 () Int)
 (declare-fun T0_3 () String)
 (declare-fun T0_7 () String)
+(declare-fun T0_9 () String)
 (declare-fun T1_3 () String)
 (declare-fun T1_7 () String)
 (declare-fun T2_3 () String)

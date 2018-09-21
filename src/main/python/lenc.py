@@ -174,7 +174,7 @@ def print_lenc_elements_pretty(elem: IntElement) -> str:
     if elem.coefficient == -1:
         sign = '-'
     if isinstance(elem, IntVariable):
-        return f'{sign}{elem.value[3:-5]}'  # remove post-fix "_len_"
+        return f'{sign}{elem.value[3:-4]}'  # remove post-fix "_len"
     if isinstance(elem, IntConstant):
         return f'{sign}{elem.value}'
 
@@ -202,15 +202,23 @@ def print_length_constraint_pretty(lenc: LengthConstraint) -> str:
     return f'{left} == {right}'
 
 
-def print_length_constraints_as_condition(lencs: List[LengthConstraint]) -> str:
+def print_length_constraints_as_one_condition(lencs: List[LengthConstraint]) -> [str]:
     if len(lencs) == 0:  # no length constraints
-        return ''
-
+        return None
     if len(lencs) == 1:
         ret = f'{print_length_constraint_pretty(lencs[0])}'
     else:
         ret = f'({print_length_constraint_pretty(lencs[0])})'
         for lenc in lencs[1:]:
             ret += f' && ({print_length_constraint_pretty(lenc)})'
+    return ret
 
+
+def print_length_constraints_as_strings(lencs: List[LengthConstraint]) -> [str]:
+    if len(lencs) == 0:  # no length constraints
+        return None
+    ret = [print_length_constraint_pretty(lencs[0])]
+    if len(lencs) > 1:
+        for lenc in lencs[1:]:
+            ret.append(print_length_constraint_pretty(lenc))
     return ret
