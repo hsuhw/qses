@@ -205,6 +205,7 @@ class FsaClassification:
             self.fsa_classes[self.num_classes] = {fsa}
             return self.num_classes
         # check existing FSA classes
+        # for each class, only one check is needed
         for i in self.fsa_classes:
             for f in self.fsa_classes[i]:
                 if fsa == f:
@@ -212,7 +213,7 @@ class FsaClassification:
                     return i
                 else:
                     break
-        # new class
+        # new class identified
         self.num_classes += 1
         self.fsa_classes[self.num_classes] = {fsa}
         return self.num_classes

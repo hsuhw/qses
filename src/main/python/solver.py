@@ -6,6 +6,7 @@ from graphviz import Digraph
 from lenc import LengthConstraint
 from prob import Problem, ValueType
 from we import WordEquation, StrElement, StrVariable, is_var, is_del, not_del
+from fsa import FSA, from_str, remove_first_char, split_by_states, FsaClassification
 
 
 @unique
@@ -22,12 +23,62 @@ class Rewrite(Enum):
 
 
 TransformRecord = Tuple[Optional[StrElement], Optional[StrElement]]
+RegConstraintClasses = Dict[str, int]
+RegConstraints = Dict[str, FSA]
+
+fsa_classification = FsaClassification()  # Object storing FSA classifications
+
+
+class SolveTreeNode:
+    def __init__(self, word_equation: WordEquation, reg_constraints: [Dict[str, FSA]] = None):
+        self.word_equation = word_equation
+        self.reg_constraints: [RegConstraints] = reg_constraints
+        if not reg_constraints:  # there is no regular constraint
+            self.regc_classes: [RegConstraintClasses] = None
+        else:
+            self.regc_classes: [RegConstraintClasses] = dict()
+            self.regc_classes = dict()
+            for name in reg_constraints:
+                self.regc_classes[name] = fsa_classification.get_classification(reg_constraints[name])
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            if self.regc_classes and other.regc_classes:
+                return(self.word_equation == other.word_equation and
+                       same_reg_constraints(self.reg_constraints, other.reg_constraints))
+            elif not self.regc_classes and not other.regc_classes:
+                return self.word_equation == other.word_equation
+        return False
+
+    def __str__(self):
+        if self.reg_constraints:
+            return f'{str(self.word_equation)}:\n' +\
+                   '\n'.join([f'{s}:\n{str(self.reg_constraints[s])}' for s in sorted(self.reg_constraints)])
+        else:
+            return f'{str(self.word_equation)}:{{}}'
+
+    def __repr__(self):
+        if self.regc_classes:
+            return f'{str(self.word_equation)}:{{' +\
+                   ','.join([f'{s}:{self.regc_classes[s]}' for s in sorted(self.regc_classes)]) +\
+                   '}'
+        else:
+            return f'{str(self.word_equation)}:{{}}'
+
+    def __hash__(self):
+        return hash(repr(self))
+
+
+def same_reg_constraints(regc1: Dict[str, int], regc2: Dict[str, int]) -> bool:
+    # check for (1) the same set of keys (2) for each key, classifications of FSA are the same
+    return len(regc1.keys() - regc2.keys()) + len(regc2.keys() - regc1.keys()) == 0 and \
+           sum([1 for e in regc1 if e in regc2 and regc1[e] == regc2[e]]) == len(regc1.keys())
 
 
 class Transform:
-    def __init__(self, source: WordEquation, rewrite: Rewrite,
+    def __init__(self, source: SolveTreeNode, rewrite: Rewrite,
                  record: TransformRecord):
-        self.source: WordEquation = source
+        self.source: SolveTreeNode = source
         self.rewrite: Rewrite = rewrite
         self.record = record
 
@@ -38,136 +89,289 @@ class Transform:
                     self.record == other.record)
         return False
 
-    def __hash__(self):
-        return hash(self.source) + hash(self.rewrite) + hash(str(self.record))
+    def __str__(self):
+        return f'{self.source}, {self.rewrite}, {self.record}'
 
     def __repr__(self):
-        return f'{self.source}, {self.rewrite}, {self.record}'
+        return f'{repr(self.source)}, {repr(self.rewrite)}, {repr(self.record)}'
+
+    def __hash__(self):
+        return hash(repr(self))
 
 
 class SolveTree:
     success_end: WordEquation = WordEquation([], [])
 
-    def __init__(self, root: WordEquation):
-        self.root: WordEquation = root
-        self.node_relations: Dict[WordEquation, Set[Transform]] = {}
+    def __init__(self, root: SolveTreeNode):
+        self.root: SolveTreeNode = root
+        self.node_relations: Dict[SolveTreeNode, Set[Transform]] = {}
 
-    def has_node(self, node: WordEquation):
+    def has_node(self, node: SolveTreeNode):
         return node in self.node_relations
 
-    def has_solution(self):
-        return self.has_node(SolveTree.success_end)
+    def has_solution(self) -> bool:
+        for node in self.node_relations:
+            if node.word_equation == self.success_end:
+                return True
+        return False
 
-    def add_node(self, src: WordEquation, node: WordEquation, rewrite: Rewrite,
+    def get_solution_node(self) -> Set[SolveTreeNode]:
+        ret = set()
+        for node in self.node_relations:
+            if node.word_equation == self.success_end:
+                ret.add(node)
+        return ret
+
+    def add_node(self, src: SolveTreeNode, node: SolveTreeNode, rewrite: Rewrite,
                  record: TransformRecord) -> bool:
         transform = Transform(src, rewrite, record)
+        # print(f'{print_solve_tree_node_pretty(src)}\n\n'
+        #       f'    rewrite: {print_transform_rewrite_pretty(transform)}\n'
+        #       f'{print_solve_tree_node_pretty(node, " "*4)}')
+        # print(f'### node equivalent: {node==src}')
         if self.has_node(node):
+            # print('### has node...')
             self.node_relations[node].add(transform)
             return False
         else:
+            # print('### new node...')
             self.node_relations[node] = {transform}
-            return True
+            return True  # True means a new node relation is created
 
 
 class InvalidProblemError(Exception):
     pass
 
 
+def node_with_new_reg_constraints(we: WordEquation, regc_old: RegConstraints, fsa: [FSA],
+                                  var_name: str, process_type: str = 'copy') -> [SolveTreeNode]:
+    regc_new: RegConstraints = dict()
+    if process_type == 'check':
+        for r in regc_old:
+            if r == var_name:  # check {var_name}'s fsa inclusion, then update
+                tmp_fsa = regc_old[r].intersect(fsa)
+                tmp_fsa.prune()
+                if tmp_fsa.is_empty():  # inclusion is empty, transform failed
+                    return None
+                else:  # inclusion ok, update
+                    regc_new[r] = tmp_fsa
+            else:  # other variables, copy
+                regc_new[r] = regc_old[r]
+        if var_name not in regc_old:  # in case {var_name} has no regular constraint yet, do update
+            regc_new[var_name] = fsa
+    elif process_type == 'copy':
+        for r in regc_old:
+            regc_new[r] = regc_old[r]
+    elif process_type == 'update':  # do copy first, then update {var_name}'s fsa
+        for r in regc_old:
+            regc_new[r] = regc_old[r]
+        regc_new[var_name] = fsa  # update after for-loop, in case {var_name} has no regular constraint yet
+    return SolveTreeNode(we, regc_new)
+
+
 class BasicSolver:
     def __init__(self, prob: Problem):
         if len(prob.word_equations) < 1:
             raise InvalidProblemError()
-        prob.merge_all_word_equations()
-        we = prob.word_equations[0]
-        self.pending_checks: List[WordEquation] = [we]
-        self.resolve: SolveTree = SolveTree(we)
+        if len(prob.word_equations) > 1:
+            we = reduce(lambda x, y: x.merge(y), prob.word_equations)
+        else:
+            we = prob.word_equations[0]
+        node = SolveTreeNode(we, prob.reg_constraints)  # root node
+        self.pending_checks: List[SolveTreeNode] = [node]
+        self.resolve: SolveTree = SolveTree(node)
+        if len(prob.reg_constraints) > 0:  # has membership(regular) constraints
+            self.alphabet = list(prob.reg_constraints.values())[0].alphabet
+            self.empty_str_fsa = from_str('', self.alphabet)
+            self.fsa_classes: FsaClassification = fsa_classification
+        else:
+            self.alphabet = None
+            self.empty_str_fsa = None
 
-    def transform_with_emptiness(self, we: WordEquation):
+    def transform_with_emptiness(self, node: SolveTreeNode):
+        we = node.word_equation
         lh, rh = hh = we.peek()
         if (not lh or is_del(lh)) and rh and is_var(rh):
             new_we = we.remove_right_head_from_all().trim_prefix()
-            if self.resolve.add_node(we, new_we, Rewrite.rvar_be_empty, hh):
-                self.pending_checks.append(new_we)
+            self.process_reg_constraints(node, new_we, Rewrite.rvar_be_empty, hh)
         elif (not rh or is_del(rh)) and lh and is_var(lh):
             new_we = we.remove_left_head_from_all().trim_prefix()
-            if self.resolve.add_node(we, new_we, Rewrite.lvar_be_empty, hh):
-                self.pending_checks.append(new_we)
+            self.process_reg_constraints(node, new_we, Rewrite.lvar_be_empty, hh)
         else:
             assert False
 
-    def transform_both_var_case(self, we: WordEquation):
+    def transform_both_var_case(self, node: SolveTreeNode):
+        we = node.word_equation
         lh, rh = hh = we.peek()
 
-        case1 = we.remove_left_head_from_all().trim_prefix()
-        if self.resolve.add_node(we, case1, Rewrite.lvar_be_empty, hh):
-            self.pending_checks.append(case1)
+        case1_we = we.remove_left_head_from_all().trim_prefix()
+        self.process_reg_constraints(node, case1_we, Rewrite.lvar_be_empty, hh)
 
-        case2 = we.remove_right_head_from_all().trim_prefix()
-        if self.resolve.add_node(we, case2, Rewrite.rvar_be_empty, hh):
-            self.pending_checks.append(case2)
+        case2_we = we.remove_right_head_from_all().trim_prefix()
+        self.process_reg_constraints(node, case2_we, Rewrite.rvar_be_empty, hh)
 
-        case3 = we.replace(lh, rh).remove_heads().trim_prefix()
-        if self.resolve.add_node(we, case3, Rewrite.lvar_be_rvar, hh):
-            self.pending_checks.append(case3)
+        case3_we = we.replace(lh, rh).remove_heads().trim_prefix()
+        self.process_reg_constraints(node, case3_we, Rewrite.lvar_be_rvar, hh)
 
-        case4 = we.replace_with(lh, [rh, lh]).remove_heads().trim_prefix()
-        if self.resolve.add_node(we, case4, Rewrite.lvar_longer_var, hh):
-            self.pending_checks.append(case4)
+        case4_we = we.replace_with(lh, [rh, lh]).remove_heads().trim_prefix()
+        self.process_reg_constraints(node, case4_we, Rewrite.lvar_longer_var, hh)
 
-        case5 = we.replace_with(rh, [lh, rh]).remove_heads().trim_prefix()
-        if self.resolve.add_node(we, case5, Rewrite.rvar_longer_var, hh):
-            self.pending_checks.append(case5)
+        case5_we = we.replace_with(rh, [lh, rh]).remove_heads().trim_prefix()
+        self.process_reg_constraints(node, case5_we, Rewrite.rvar_longer_var, hh)
 
-    def transform_char_var_case(self, we: WordEquation):
+    def transform_char_var_case(self, node: SolveTreeNode):
+        we = node.word_equation
         lh, rh = hh = we.peek()
 
-        case1 = we.remove_right_head_from_all().trim_prefix()
-        if self.resolve.add_node(we, case1, Rewrite.rvar_be_empty, hh):
-            self.pending_checks.append(case1)
+        case1_we = we.remove_right_head_from_all().trim_prefix()
+        self.process_reg_constraints(node, case1_we, Rewrite.rvar_be_empty, hh)
 
-        case2 = we.replace(rh, lh).remove_heads().trim_prefix()
-        if self.resolve.add_node(we, case2, Rewrite.rvar_be_char, hh):
-            self.pending_checks.append(case2)
+        case2_we = we.replace(rh, lh).remove_heads().trim_prefix()
+        self.process_reg_constraints(node, case2_we, Rewrite.rvar_be_char, hh)
 
-        case3 = we.replace_with(rh, [lh, rh]).remove_heads().trim_prefix()
-        if self.resolve.add_node(we, case3, Rewrite.rvar_longer_char, hh):
-            self.pending_checks.append(case3)
+        case3_we = we.replace_with(rh, [lh, rh]).remove_heads().trim_prefix()
+        self.process_reg_constraints(node, case3_we, Rewrite.rvar_longer_char, hh)
 
-    def transform_var_char_case(self, we: WordEquation):
+    def transform_var_char_case(self, node: SolveTreeNode):
+        we = node.word_equation
         lh, rh = hh = we.peek()
 
-        case1 = we.remove_left_head_from_all().trim_prefix()
-        if self.resolve.add_node(we, case1, Rewrite.lvar_be_empty, hh):
-            self.pending_checks.append(case1)
+        case1_we = we.remove_left_head_from_all().trim_prefix()
+        self.process_reg_constraints(node, case1_we, Rewrite.lvar_be_empty, hh)
 
-        case2 = we.replace(lh, rh).remove_heads().trim_prefix()
-        if self.resolve.add_node(we, case2, Rewrite.lvar_be_char, hh):
-            self.pending_checks.append(case2)
+        case2_we = we.replace(lh, rh).remove_heads().trim_prefix()
+        self.process_reg_constraints(node, case2_we, Rewrite.lvar_be_char, hh)
 
-        case3 = we.replace_with(lh, [rh, lh]).remove_heads().trim_prefix()
-        if self.resolve.add_node(we, case3, Rewrite.lvar_longer_char, hh):
-            self.pending_checks.append(case3)
+        case3_we = we.replace_with(lh, [rh, lh]).remove_heads().trim_prefix()
+        self.process_reg_constraints(node, case3_we, Rewrite.lvar_longer_char, hh)
+
+    def process_reg_constraints(self, node: SolveTreeNode, we: WordEquation, rewrite: Rewrite,
+                                record: TransformRecord):
+        if not node.reg_constraints:  # if no regular constraints at first, don't process regular constraints
+            new_node = SolveTreeNode(we)
+            self.update_solve_tree(node, new_node, rewrite, record)
+            return  # case end: no regular constraints
+
+        # process regular constraints according to rewrite cases and construct {regc_new}
+        regc: RegConstraints = node.reg_constraints
+        if rewrite == Rewrite.lvar_be_empty:
+            # check inclusion of empty fsa for {lvar}
+            fsa_tmp = self.empty_str_fsa
+            var_name = record[0].value
+            new_node = node_with_new_reg_constraints(we, regc, fsa_tmp, var_name, 'check')
+            self.update_solve_tree(node, new_node, rewrite, record)
+        elif rewrite == Rewrite.rvar_be_empty:
+            # check inclusion of empty fsa for {rvar}
+            fsa_tmp = self.empty_str_fsa
+            var_name = record[1].value
+            new_node = node_with_new_reg_constraints(we, regc, fsa_tmp, var_name, 'check')
+            self.update_solve_tree(node, new_node, rewrite, record)
+        elif rewrite == Rewrite.lvar_be_char:
+            # check inclusion of a fsa accepting only one char for {lvar}
+            var_name, ch = record[0].value, record[1].value
+            fsa_tmp = from_str(ch, self.alphabet)
+            new_node = node_with_new_reg_constraints(we, regc, fsa_tmp, var_name, 'check')
+            self.update_solve_tree(node, new_node, rewrite, record)
+        elif rewrite == Rewrite.rvar_be_char:
+            # check inclusion of a fsa accepting only one char for {rvar}
+            var_name, ch = record[1].value, record[0].value
+            fsa_tmp = from_str(ch, self.alphabet)
+            new_node = node_with_new_reg_constraints(we, regc, fsa_tmp, var_name, 'check')
+            self.update_solve_tree(node, new_node, rewrite, record)
+        elif rewrite == Rewrite.lvar_be_rvar:
+            # check inclusion of a fsa accepting {rvar} for {lvar}
+            var_l, var_r = record[0].value, record[1].value
+            if var_r in regc:  # if {rvar} has regular constraint, check inclusion
+                fsa_tmp = regc[var_r]
+                new_node = node_with_new_reg_constraints(we, regc, fsa_tmp, var_l, 'check')
+            else:  # if {rvar} has no regular constraint, just copy
+                new_node = node_with_new_reg_constraints(we, regc, None, var_l, 'copy')
+            self.update_solve_tree(node, new_node, rewrite, record)
+        elif rewrite == Rewrite.lvar_longer_char:
+            # get a new fsa by removing the first char {rvar} from the fsa of {lvar}
+            var_name, ch = record[0].value, record[1].value
+            if var_name in regc:
+                fsa_tmp = remove_first_char(regc[var_name], ch)
+                if fsa_tmp:
+                    new_node = node_with_new_reg_constraints(we, regc, fsa_tmp, var_name, 'update')
+                else:
+                    return  # transform failed (constraint violation)
+            else:
+                new_node = node_with_new_reg_constraints(we, regc, None, var_name, 'copy')
+            self.update_solve_tree(node, new_node, rewrite, record)
+        elif rewrite == Rewrite.rvar_longer_char:
+            # get a new fsa by removing the first char {lvar} from the fsa of {rvar}
+            var_name, ch = record[1].value, record[0].value
+            if var_name in regc:
+                fsa_tmp = remove_first_char(regc[var_name], ch)
+                if fsa_tmp:
+                    new_node = node_with_new_reg_constraints(we, regc, fsa_tmp, var_name, 'update')
+                else:
+                    return  # transform failed (constraint violation)
+            else:
+                new_node = node_with_new_reg_constraints(we, regc, None, var_name, 'copy')
+            self.update_solve_tree(node, new_node, rewrite, record)
+        elif rewrite == Rewrite.lvar_longer_var:
+            # get a set of pair of fsa for ({rvar},{lvar}) by splitting the constraint of {lvar}
+            var_l, var_r = record[0].value, record[1].value
+            new_node = None
+            if var_l in regc:  # {var_l} has regular constraint, need to do split
+                fsa_paris = split_by_states(regc[var_l])
+                for fsa_r, fsa_l in fsa_paris:
+                    new_node = node_with_new_reg_constraints(we, regc, fsa_l, var_l, 'check')
+                    if new_node:
+                        # this function call will update fsa of {var_r} if it has no regular constraint yet
+                        new_node = node_with_new_reg_constraints(we, new_node.reg_constraints, fsa_r, var_r, 'check')
+            else:  # no need to update/check regular constraints
+                new_node = node_with_new_reg_constraints(we, regc, None, var_l, 'copy')
+            self.update_solve_tree(node, new_node, rewrite, record)
+        elif rewrite == Rewrite.rvar_longer_var:
+            # get a set of pair of fsa for ({rvar},{lvar}) by splitting the constraint of {rvar}
+            var_l, var_r = record[0].value, record[1].value
+            new_node = None
+            if var_r in regc:  # {var_r} has regular constraint, need to do split
+                fsa_paris = split_by_states(regc[var_r])
+                for fsa_l, fsa_r in fsa_paris:
+                    new_node = node_with_new_reg_constraints(we, regc, fsa_r, var_r, 'check')
+                    if new_node:
+                        # this function call will update fsa of {var_r} if it has no regular constraint yet
+                        new_node = node_with_new_reg_constraints(we, new_node.reg_constraints, fsa_l, var_l, 'check')
+            else:  # no need to update/check regular constraints
+                new_node = node_with_new_reg_constraints(we, regc, None, var_r, 'copy')
+            self.update_solve_tree(node, new_node, rewrite, record)
+
+    def update_solve_tree(self, node: SolveTreeNode, new_node: [SolveTreeNode], rewrite: Rewrite,
+                          record: TransformRecord):
+        if new_node:
+            if len(node.word_equation) < len(new_node.word_equation):
+                print("Warning: word equation is not quadratic")
+                print(f'old we: length = {len(node.word_equation)}\n{node.word_equation}')
+                print(f'new we: length = {len(new_node.word_equation)}\n{new_node.word_equation}')
+                exit(1)
+            if self.resolve.add_node(node, new_node, rewrite, record):
+                self.pending_checks.append(new_node)
 
     def solve(self) -> SolveTree:
         while self.pending_checks:
-            curr_we = self.pending_checks.pop(0)
-            if curr_we == self.resolve.success_end:
+            curr_node = self.pending_checks.pop(0)
+            if curr_node.word_equation == self.resolve.success_end:
                 pass
-            elif curr_we.is_simply_unequal():
+            elif curr_node.word_equation.is_simply_unequal():
                 pass
-            elif curr_we.has_emptiness():
-                self.transform_with_emptiness(curr_we)
-            elif curr_we.is_both_var_headed():
-                self.transform_both_var_case(curr_we)
-            elif curr_we.is_char_var_headed():
-                self.transform_char_var_case(curr_we)
-            elif curr_we.is_var_char_headed():
-                self.transform_var_char_case(curr_we)
+            elif curr_node.word_equation.has_emptiness():
+                self.transform_with_emptiness(curr_node)
+            elif curr_node.word_equation.is_both_var_headed():
+                self.transform_both_var_case(curr_node)
+            elif curr_node.word_equation.is_char_var_headed():
+                self.transform_char_var_case(curr_node)
+            elif curr_node.word_equation.is_var_char_headed():
+                self.transform_var_char_case(curr_node)
             else:
                 assert False
         return self.resolve
 
 
+# functions for turn word equations to linear/quadratic form
 def turn_to_linear_we(prob: Problem, we: WordEquation = None):
     tgt_we = we or prob.word_equations[0]
     occurred_var: Set[StrElement] = set()
@@ -222,6 +426,46 @@ def turn_to_quadratic_we(prob: Problem, we: WordEquation = None):
 
 
 # functions for output: pretty print, c program, graphviz, etc.
+def print_word_equation_pretty(we: WordEquation) -> str:
+    left_str = ''.join(
+        [e.value if not_del(e) else '$' for e in we.lhs]) or '\"\"'
+    right_str = ''.join(
+        [e.value if not_del(e) else '$' for e in we.rhs]) or '\"\"'
+    return f'{left_str}={right_str}'
+
+
+def print_reg_constraints_pretty(node: SolveTreeNode, indent: str = '') -> str:
+    if node.reg_constraints:
+        return '\n\n'.join([f'{indent}{s}:({str(node.regc_classes[s])}):\n' +
+                            indent + str(node.reg_constraints[s]).replace('\n', '\n' + indent)
+                            for s in sorted(node.reg_constraints)])
+    else:
+        return ''
+
+
+def print_reg_constraints_simple(node: SolveTreeNode) -> str:
+    if node.regc_classes:
+        return '-'.join([f'{s}({str(node.regc_classes[s])})' for s in sorted(node.regc_classes)])
+    else:
+        return ''
+
+
+def print_solve_tree_node_pretty(node: SolveTreeNode, indent: str = '') -> str:
+    if node.reg_constraints:
+        return f'{indent}{print_word_equation_pretty(node.word_equation)}:\n\n' \
+               f'{print_reg_constraints_pretty(node, indent*2)}'
+    else:
+        return f'{indent}{print_word_equation_pretty(node.word_equation)}'
+
+
+def print_solve_tree_node_simple(node: SolveTreeNode, indent: str = '') -> str:
+    if node.regc_classes:
+        return f'{indent}{print_word_equation_pretty(node.word_equation)}:\n' \
+               f'{indent*2}{print_reg_constraints_simple(node)}'
+    else:
+        return f'{indent}{print_word_equation_pretty(node.word_equation)}'
+
+
 def print_tree_plain(tree: SolveTree):
     print(f'{tree.root}: ')
     cnt_node = 1
@@ -232,14 +476,6 @@ def print_tree_plain(tree: SolveTree):
         for t in tree.node_relations[k]:
             print(f'    {cnt}  {t})')
             cnt += 1
-
-
-def print_word_equation_pretty(we: WordEquation) -> str:
-    left_str = ''.join(
-        [e.value if not_del(e) else '#' for e in we.lhs]) or '\"\"'
-    right_str = ''.join(
-        [e.value if not_del(e) else '#' for e in we.rhs]) or '\"\"'
-    return f'{left_str}={right_str}'
 
 
 def print_transform_rewrite_pretty(trans: Transform) -> str:
@@ -271,35 +507,6 @@ def print_transform_rewrite_pretty(trans: Transform) -> str:
         return f'{rval}={lval}{rval}'
 
 
-def print_tree_pretty(tree: SolveTree):
-    print(f'word equation: {print_word_equation_pretty(tree.root)}')
-    cnt_node = 1
-    for k in tree.node_relations.keys():
-        print(f'node{cnt_node}  {print_word_equation_pretty(k)}')
-        cnt_node += 1
-        cnt = 1
-        for t in tree.node_relations[k]:
-            print(
-                f'    child{cnt}  {print_word_equation_pretty(t.source)}, {print_transform_rewrite_pretty(t)}')
-            cnt += 1
-
-
-def print_tree_dot_pretty(tree: SolveTree):
-    we_str = print_word_equation_pretty(tree.root).replace('=', '-')
-    # if not tree.has_solution():
-    #    print('no solution for word equation {we_str}')
-
-    dot = Digraph(name=we_str, comment=we_str)
-    for k in tree.node_relations.keys():
-        node_str = print_word_equation_pretty(k)
-        dot.node(node_str, node_str)
-        for r in tree.node_relations[k]:
-            next_node_str = print_word_equation_pretty(r.source)
-            dot.edge(node_str, next_node_str, print_transform_rewrite_pretty(r))
-    print(dot.source)
-    dot.render()
-
-
 def print_transform_rewrite_length(trans: Transform) -> str:
     if trans.record[0]:
         lval = trans.record[0].value
@@ -329,7 +536,63 @@ def print_transform_rewrite_length(trans: Transform) -> str:
         return f'{rval}={rval}+{lval}'
 
 
-def print_tree_c_program(tree: SolveTree, type: str, lengthCons: List[str]):
+def print_tree_pretty(tree: SolveTree, max_num: int = 0):
+    print(f'word equation: {print_word_equation_pretty(tree.root.word_equation)}\n')
+    print(f'regular constraints:\n{print_reg_constraints_pretty(tree.root)}\n')
+    cnt_node = 1
+    for k in tree.node_relations:
+        if max_num > 0:
+            if cnt_node > max_num:
+                return
+        print(f'node{cnt_node}:\n')
+        print(print_solve_tree_node_pretty(k))
+        cnt_node += 1
+        cnt = 1
+        for t in tree.node_relations[k]:
+            print(
+                f'    child{cnt}\n'
+                f'        rewrite: {print_transform_rewrite_pretty(t)}\n\n'
+                f'    {print_solve_tree_node_pretty(t.source, " "*4)}\n')
+            cnt += 1
+
+
+def print_tree_simple(tree: SolveTree, max_num: int = 0):
+    print(f'word equation: {print_word_equation_pretty(tree.root.word_equation)}\n')
+    print(f'regular constraints:\n{print_reg_constraints_simple(tree.root)}\n')
+    cnt_node = 1
+    for k in tree.node_relations:
+        if max_num > 0:
+            if cnt_node > max_num:
+                return
+        print(f'node{cnt_node}:\n')
+        print(print_solve_tree_node_simple(k))
+        cnt_node += 1
+        cnt = 1
+        for t in tree.node_relations[k]:
+            print(
+                f'    child{cnt}\n'
+                f'        rewrite: {print_transform_rewrite_pretty(t)}\n'
+                f'    {print_solve_tree_node_simple(t.source, " "*4)}\n')
+            cnt += 1
+
+
+def print_tree_dot_pretty(tree: SolveTree):
+    we_str = print_word_equation_pretty(tree.root.word_equation).replace('=', '-')
+    # if not tree.has_solution():
+    #    print('no solution for word equation {we_str}')
+
+    dot = Digraph(name=we_str, comment=we_str)
+    for k in tree.node_relations.keys():
+        node_str = print_word_equation_pretty(k.word_equation) + print_reg_constraints_simple(k)
+        dot.node(node_str, node_str)
+        for r in tree.node_relations[k]:
+            next_node_str = print_word_equation_pretty(r.source.word_equation) + print_reg_constraints_simple(r.source)
+            dot.edge(node_str, next_node_str, print_transform_rewrite_pretty(r))
+    print(dot.source)
+    dot.render()
+
+
+def print_tree_c_program(tree: SolveTree, type: str, lengthCons: [List[str]]) -> str:  # returns the filename
     # check type validity
     if type != 'interProc' and type != 'UAutomizerC' and type != 'EldaricaC':
         print(
@@ -362,14 +625,13 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: List[str]):
     queued_node = set()
     variables = set()
     for s in trans.keys():
-        for t in s.variables():
+        for t in s.word_equation.variables():
             variables.add(t)
     node_count = 0
 
     # open a file for writing code
-    fp = open(
-        f'{print_word_equation_pretty(tree.root).replace("=", "-")}_{type}.c',
-        "w")
+    filename = f'{print_word_equation_pretty(tree.root.word_equation).replace("=", "-")}_{type}.c'
+    fp = open(filename,"w")
 
     # variable declaration
     if type == 'interProc':
@@ -380,8 +642,7 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: List[str]):
         fp.write('nodeNo: int,\n')
         fp.write('reachFinal: int;\n')
     elif type == 'UAutomizerC':
-        fp.write(
-            'extern void __VERIFIER_error() __attribute__ ((__noreturn__));\n')
+        fp.write('extern void __VERIFIER_error() __attribute__ ((__noreturn__));\n')
         fp.write('extern int __VERIFIER_nondet_int(void);\n')
         fp.write('\n')
         fp.write('int main() {\n')
@@ -390,7 +651,7 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: List[str]):
         fp.write('  int rdn, nodeNo, reachFinal;\n')
     elif type == 'EldaricaC':
         fp.write('int __VERIFIER_nondet_int(void) { int n=_; return n; }\n')
-        fp.write()
+        fp.write('\n')
         fp.write('int main() {\n')
         for s in variables:
             fp.write(f'  int {s.value};\n')
@@ -402,9 +663,9 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: List[str]):
     fp.write('  reachFinal = 0;\n')
     fp.write(f'  while (reachFinal==0) {while_start}\n')
     # start traverse from init node to final node
-    init = SolveTree.success_end
+    init = tree.get_solution_node()
     final = tree.root
-    queued_node.add(init)
+    [queued_node.add(s) for s in init]
     while len(queued_node) > 0:
         tmp_node = queued_node.pop()
         # cases of node
@@ -413,16 +674,14 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: List[str]):
         else:
             visited_node.add(tmp_node)
 
-        if tmp_node == init:  # this is the initial node
+        if tmp_node in init:  # this is the initial node
             fp.write(f'    if (nodeNo=={node_count}) {if_start}\n')
             # node_count = 0 (the first loop)
-            fp.write(
-                f'    /* node = {print_word_equation_pretty(tmp_node)} */\n')
+            fp.write(f'    /* node = {print_word_equation_pretty(tmp_node.word_equation)} */\n')
         else:
             fp.write(f'    if (nodeNo=={node2_count[tmp_node]}) {if_start}\n')
             # node2_count must has key "tmp_node"
-            fp.write(
-                f'    /* node = {print_word_equation_pretty(tmp_node)} */\n')
+            fp.write(f'    /* node = {print_word_equation_pretty(tmp_node.word_equation)} */\n')
             if tmp_node == final:  # this is the final node
                 fp.write('      reachFinal=1;\n')
                 fp.write(f'    {if_end}\n')
@@ -487,3 +746,4 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: List[str]):
     fp.write(prog_end)
 
     fp.close()
+    return filename
