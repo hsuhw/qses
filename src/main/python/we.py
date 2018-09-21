@@ -115,6 +115,9 @@ class WordEquation:
     def __hash__(self):
         return hash(str(self))
 
+    def __len__(self):
+        return len(self.lhs) + len(self.rhs)
+
     def variables(self) -> Set[StrVariable]:
         return {e for e in self.lhs + self.rhs if isinstance(e, StrVariable)}
 
@@ -192,6 +195,7 @@ class WordEquation:
         lhs, rhs = self.copy_expressions()
         lh, rh = heads_or_none(lhs, rhs)
         while ((is_char(lh) and is_char(rh) and lh == rh) or
+               (is_var(lh) and is_var(rh) and lh == rh) or
                (is_del(lh) and is_del(rh))):
             lhs.pop(0)
             rhs.pop(0)
