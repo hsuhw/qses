@@ -3,7 +3,7 @@ from functools import reduce
 from typing import List, Tuple, Dict, Set, Optional
 
 from graphviz import Digraph
-from lenc import LengthConstraint
+from lenc import LengthConstraint, print_length_constraints_as_strings, internal_len_var_name
 from prob import Problem, ValueType
 from we import WordEquation, StrElement, StrVariable, is_var, is_del, not_del
 from fsa import FSA, from_str, remove_first_char, split_by_states, FsaClassification
@@ -592,7 +592,7 @@ def print_tree_dot_pretty(tree: SolveTree):
     dot.render()
 
 
-def print_tree_c_program(tree: SolveTree, type: str, lengthCons: [List[str]]) -> str:  # returns the filename
+def print_tree_c_program(tree: SolveTree, type: str, problem: Problem) -> str:  # returns the filename
     # check type validity
     if type != 'interProc' and type != 'UAutomizerC' and type != 'EldaricaC':
         print(
@@ -624,14 +624,22 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: [List[str]]) ->
     node2_count = dict()
     queued_node = set()
     variables = set()
-    for s in trans.keys():
-        for t in s.word_equation.variables():
-            variables.add(t)
+    for var in problem.variables:
+        if problem.variables[var] == ValueType.string or \
+                (problem.variables[var] == ValueType.int and not internal_len_var_name.match(var)):
+            variables.add(var)
+    # for s in trans.keys():
+    #     for t in s.word_equation.variables():
+    #         variables.add(t)
+    # for e in int_vars:
+    #     if not length_origin_name(e):
+    #         variables.add(e)  # add non-length variables in length constraints
     node_count = 0
 
     # open a file for writing code
-    filename = f'{print_word_equation_pretty(tree.root.word_equation).replace("=", "-")}_{type}.c'
-    fp = open(filename,"w")
+    #filename = f'{print_word_equation_pretty(tree.root.word_equation).replace("=", "-")}_{type}.c'
+    filename = f'tree_obj_{id(tree)}_{type}.c'
+    fp = open(filename, "w")
 
     # variable declaration
     if type == 'interProc':
@@ -647,14 +655,14 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: [List[str]]) ->
         fp.write('\n')
         fp.write('int main() {\n')
         for s in variables:
-            fp.write(f'  int {s.value};\n')
+            fp.write(f'  int {s};\n')
         fp.write('  int rdn, nodeNo, reachFinal;\n')
     elif type == 'EldaricaC':
         fp.write('int __VERIFIER_nondet_int(void) { int n=_; return n; }\n')
         fp.write('\n')
         fp.write('int main() {\n')
         for s in variables:
-            fp.write(f'  int {s.value};\n')
+            fp.write(f'  int {s};\n')
         fp.write('  int rdn, nodeNo, reachFinal;\n')
 
     # program begins
@@ -728,21 +736,22 @@ def print_tree_c_program(tree: SolveTree, type: str, lengthCons: [List[str]]) ->
 
         fp.write(f'    {if_end}\n')
     fp.write(f'  {while_end}\n')
-    if lengthCons:
-        if len(lengthCons) == 1:
-            lc = lengthCons[0]
+    length_cons = print_length_constraints_as_strings(problem.len_constraints)
+    if length_cons:
+        if len(length_cons) == 1:
+            lc = length_cons[0]
         else:  # multiple length constraints, take conjunction
-            lc = ' && '.join(lengthCons)
-    if type == "UAutomizerC" and lengthCons:
+            lc = ' && '.join(length_cons)
+    if type == "UAutomizerC" and length_cons:
         # length constraint (for UAutomizer)
-        fp.write(f'  if ({lc}) {{ //length constraint: {lengthCons}\n')
+        fp.write(f'  if ({lc}) {{ //length constraint: {length_cons}\n')
         fp.write('    ERROR: __VERIFIER_error();\n')
         fp.write('  }\n')
         fp.write('  else {\n')
         fp.write('    return 0;\n')
         fp.write('  }\n')
-    if type == "EldaricaC" and lengthCons:  # length constraint (for Eldarica)
-        fp.write(f'  assert (!({lc})); //length constraint: {lengthCons}\n')
+    if type == "EldaricaC" and length_cons:  # length constraint (for Eldarica)
+        fp.write(f'  assert (!({lc})); //length constraint: {length_cons}\n')
     fp.write(prog_end)
 
     fp.close()

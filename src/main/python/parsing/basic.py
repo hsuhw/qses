@@ -503,3 +503,13 @@ def parse_file(file_path: str, syntax: Syntax = Z3STR3_SYNTAX):
     walker = antlr4.ParseTreeWalker()
     walker.walk(builder, ast_script_part)
     return builder.problem
+
+
+def parse_string(in_str: str, syntax: Syntax = Z3STR3_SYNTAX):
+    lexer = SMTLIB26Lexer(antlr4.InputStream(in_str))
+    parser = SMTLIB26Parser(antlr4.CommonTokenStream(lexer))
+    ast_script_part = parser.script()
+    builder = BasicProblemBuilder(in_str, syntax)
+    walker = antlr4.ParseTreeWalker()
+    walker.walk(builder, ast_script_part)
+    return builder.problem

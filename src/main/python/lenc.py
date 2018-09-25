@@ -3,6 +3,7 @@ import tok
 from enum import Enum, unique
 from re import compile
 from typing import List, Tuple, Set, Union, Optional
+from tok import INTERNAL_VAR_PREFIX, INTERNAL_LEN_VAR_POSTFIX
 
 
 class IntElement:
@@ -174,7 +175,10 @@ def print_lenc_elements_pretty(elem: IntElement) -> str:
     if elem.coefficient == -1:
         sign = '-'
     if isinstance(elem, IntVariable):
-        return f'{sign}{elem.value[3:-4]}'  # remove post-fix "_len"
+        if INTERNAL_VAR_PREFIX in elem.value and INTERNAL_LEN_VAR_POSTFIX in elem.value:
+            return f'{sign}{elem.value[len(INTERNAL_VAR_PREFIX):-len(INTERNAL_LEN_VAR_POSTFIX)]}'
+        else:
+            return f'{sign}{elem.value}'
     if isinstance(elem, IntConstant):
         return f'{sign}{elem.value}'
 
@@ -190,16 +194,27 @@ def print_length_constraint_pretty(lenc: LengthConstraint) -> str:
         if tmp_str[0] == '-':
             left += f' - {tmp_str[1:]}'
         else:
-            left += f' + {tmp_str[1:]}'
+            left += f' + {tmp_str}'
 
     for e in lenc.rhs[1:]:
         tmp_str = print_lenc_elements_pretty(e)
         if tmp_str[0] == '-':
             right += f' - {tmp_str[1:]}'
         else:
-            right += f' + {tmp_str[1:]}'
+            right += f' + {tmp_str}'
 
-    return f'{left} == {right}'
+    if lenc.relation == Relation.equal:
+        return f'{left} == {right}'
+    elif lenc.relation == Relation.unequal:
+        return f'{left} != {right}'
+    elif lenc.relation == Relation.greater:
+        return f'{left} > {right}'
+    elif lenc.relation == Relation.greater_equal:
+        return f'{left} >= {right}'
+    elif lenc.relation == Relation.less:
+        return f'{left} < {right}'
+    elif lenc.relation == Relation.less_equal:
+        return f'{left} >= {right}'
 
 
 def print_length_constraints_as_one_condition(lencs: List[LengthConstraint]) -> [str]:
