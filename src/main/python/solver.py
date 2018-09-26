@@ -180,7 +180,7 @@ class BasicSolver:
         node = SolveTreeNode(we, prob.reg_constraints)  # root node
         self.pending_checks: List[SolveTreeNode] = [node]
         self.resolve: SolveTree = SolveTree(node)
-        if len(prob.reg_constraints) > 0:  # has membership(regular) constraints
+        if prob.reg_constraints:  # has membership(regular) constraints
             self.alphabet = list(prob.reg_constraints.values())[0].alphabet
             self.empty_str_fsa = from_str('', self.alphabet)
             self.fsa_classes: FsaClassification = fsa_classification
@@ -576,32 +576,36 @@ def print_tree_simple(tree: SolveTree, max_num: int = 0):
             cnt += 1
 
 
-def print_tree_dot_pretty(tree: SolveTree):
-    we_str = print_word_equation_pretty(tree.root.word_equation).replace('=', '-')
+def print_tree_dot_pretty(tree: SolveTree) -> str:
+    # we_str = print_word_equation_pretty(tree.root.word_equation).replace('=', '-')
+    name = f'tree_obj_{id(tree)}'
     # if not tree.has_solution():
     #    print('no solution for word equation {we_str}')
 
-    dot = Digraph(name=we_str, comment=we_str)
+    dot = Digraph(name=name, comment=name)
     for k in tree.node_relations.keys():
-        node_str = print_word_equation_pretty(k.word_equation) + print_reg_constraints_simple(k)
+        node_str = print_word_equation_pretty(k.word_equation) + '\n' +\
+                   print_reg_constraints_simple(k)
         dot.node(node_str, node_str)
         for r in tree.node_relations[k]:
-            next_node_str = print_word_equation_pretty(r.source.word_equation) + print_reg_constraints_simple(r.source)
+            next_node_str = print_word_equation_pretty(r.source.word_equation) + '\n' +\
+                            print_reg_constraints_simple(r.source)
             dot.edge(node_str, next_node_str, print_transform_rewrite_pretty(r))
     print(dot.source)
     dot.render()
+    return name
 
 
-def print_tree_c_program(tree: SolveTree, type: str, problem: Problem) -> str:  # returns the filename
+def print_tree_c_program(tree: SolveTree, code_type: str, problem: Problem) -> str:  # returns the filename
     # check type validity
-    if type != 'interProc' and type != 'UAutomizerC' and type != 'EldaricaC':
+    if code_type != 'interProc' and code_type != 'UAutomizerC' and code_type != 'EldaricaC':
         print(
             'Type Error: type should be specified to \"interProc\" or \"UAutomizerC\" or \"EldaricaC\"')
         print('No c program output...')
         return
 
     # set some syntax keywords according to type
-    if type == 'interProc':
+    if code_type == 'interProc':
         prog_start = 'begin'
         prog_end = 'end'
         while_start = 'do'
@@ -609,7 +613,8 @@ def print_tree_c_program(tree: SolveTree, type: str, problem: Problem) -> str:  
         if_start = ' then'
         if_end = 'endif;'
         random_decl = '      rdn = random;'
-    elif type == 'UAutomizerC' or type == 'EldaricaC':
+        random_final = 'reachFinal = random;\n'
+    elif code_type == 'UAutomizerC' or code_type == 'EldaricaC':
         prog_start = ''
         prog_end = '}'
         while_start = '{'
@@ -617,6 +622,7 @@ def print_tree_c_program(tree: SolveTree, type: str, problem: Problem) -> str:  
         if_start = ' {'
         if_end = '}'
         random_decl = '      rdn =  __VERIFIER_nondet_int();\n'
+        random_final = 'reachFinal = __VERIFIER_nondet_int();\n'
 
     # preprocessing, middle variables declaration
     trans = tree.node_relations
@@ -638,18 +644,18 @@ def print_tree_c_program(tree: SolveTree, type: str, problem: Problem) -> str:  
 
     # open a file for writing code
     #filename = f'{print_word_equation_pretty(tree.root.word_equation).replace("=", "-")}_{type}.c'
-    filename = f'tree_obj_{id(tree)}_{type}.c'
+    filename = f'tree_obj_{id(tree)}_{code_type}.c'
     fp = open(filename, "w")
 
     # variable declaration
-    if type == 'interProc':
+    if code_type == 'interProc':
         fp.write('var \n')
         for s in variables:
             fp.write(f'{s.value}: int,\n')
         fp.write('rdn: int,\n')
         fp.write('nodeNo: int,\n')
         fp.write('reachFinal: int;\n')
-    elif type == 'UAutomizerC':
+    elif code_type == 'UAutomizerC':
         fp.write('extern void __VERIFIER_error() __attribute__ ((__noreturn__));\n')
         fp.write('extern int __VERIFIER_nondet_int(void);\n')
         fp.write('\n')
@@ -657,7 +663,7 @@ def print_tree_c_program(tree: SolveTree, type: str, problem: Problem) -> str:  
         for s in variables:
             fp.write(f'  int {s};\n')
         fp.write('  int rdn, nodeNo, reachFinal;\n')
-    elif type == 'EldaricaC':
+    elif code_type == 'EldaricaC':
         fp.write('int __VERIFIER_nondet_int(void) { int n=_; return n; }\n')
         fp.write('\n')
         fp.write('int main() {\n')
@@ -669,7 +675,7 @@ def print_tree_c_program(tree: SolveTree, type: str, problem: Problem) -> str:  
     fp.write(prog_start)
     fp.write(f'  nodeNo = {node_count};\n')  # set nodeNo to zero (initial node)
     fp.write('  reachFinal = 0;\n')
-    fp.write(f'  while (reachFinal==0) {while_start}\n')
+    fp.write(f'  while (1) {while_start}\n')
     # start traverse from init node to final node
     init = tree.get_solution_node()
     final = tree.root
@@ -691,9 +697,15 @@ def print_tree_c_program(tree: SolveTree, type: str, problem: Problem) -> str:  
             # node2_count must has key "tmp_node"
             fp.write(f'    /* node = {print_word_equation_pretty(tmp_node.word_equation)} */\n')
             if tmp_node == final:  # this is the final node
-                fp.write('      reachFinal=1;\n')
-                fp.write(f'    {if_end}\n')
-                continue
+                if tmp_node in trans:  # final node has transition
+                    fp.write(f'      {random_final}')
+                    fp.write(f'      if (reachFinal >= 0) {if_start} /* final node */\n')
+                    fp.write('        break;\n')
+                    fp.write(f'      {if_end}\n')
+                else:
+                    fp.write('      break;\n')
+                    fp.write(f'    {if_end}\n')
+                    continue
 
         tmp_labl = trans[tmp_node]
         tmp_len = len(tmp_labl)
@@ -742,7 +754,7 @@ def print_tree_c_program(tree: SolveTree, type: str, problem: Problem) -> str:  
             lc = length_cons[0]
         else:  # multiple length constraints, take conjunction
             lc = ' && '.join(length_cons)
-    if type == "UAutomizerC" and length_cons:
+    if code_type == "UAutomizerC" and length_cons:
         # length constraint (for UAutomizer)
         fp.write(f'  if ({lc}) {{ //length constraint: {length_cons}\n')
         fp.write('    ERROR: __VERIFIER_error();\n')
@@ -750,7 +762,7 @@ def print_tree_c_program(tree: SolveTree, type: str, problem: Problem) -> str:  
         fp.write('  else {\n')
         fp.write('    return 0;\n')
         fp.write('  }\n')
-    if type == "EldaricaC" and length_cons:  # length constraint (for Eldarica)
+    if code_type == "EldaricaC" and length_cons:  # length constraint (for Eldarica)
         fp.write(f'  assert (!({lc})); //length constraint: {length_cons}\n')
     fp.write(prog_end)
 
