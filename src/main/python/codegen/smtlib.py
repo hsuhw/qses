@@ -210,7 +210,7 @@ class SMTLIBLayout:
                     result.append(self.render_negative_int(c))
                 else:
                     result.append(c)
-        if len(result) <= 1:
+        if len(result) == 1:
             return result[0]
         else:
             return f'({self.syntax.plus()} {" ".join(map(str, result))})'
@@ -245,7 +245,9 @@ class SMTLIBLayout:
             if we.is_char(e):
                 in_str = True
                 curr_str += e.value
-        if len(result) <= 1:
+        if curr_str:
+            result.append(f'"{curr_str}"')
+        if len(result) == 1:
             return result[0]
         else:
             return f'({self.syntax.string_concat()} {" ".join(result)})'
@@ -271,14 +273,15 @@ class SMTLIBLayout:
             print(f'(assert {c})', file=dest)
 
     def print_reg_constraints(self, dest: TextIO):
-        for var_name, (regex, neg) in self.problem.reg_constraint_src.items():
-            if neg:
-                neg = self.syntax.negation()
-                mem = self.syntax.regex_membership()
-                c = f'({neg} ({mem} {var_name} {regex}))'
-            else:
-                c = f'({self.syntax.regex_membership()} {var_name} {regex})'
-            print(f'(assert {c})', file=dest)
+        for var_name, cons_list in self.problem.reg_constraints.items():
+            for cons in cons_list:
+                membership = self.syntax.regex_membership()
+                if cons.negation:
+                    neg = self.syntax.negation()
+                    c = f'({neg} ({membership} {var_name} {cons.fsa_src}))'
+                else:
+                    c = f'({membership} {var_name} {cons.fsa_src})'
+                print(f'(assert {c})', file=dest)
 
     def print(self, dest: TextIO):
         self.print_variable_declarations(dest)

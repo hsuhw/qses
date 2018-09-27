@@ -1,17 +1,23 @@
-from typing import Tuple
-
 from fsa import FSA
 
 RegExpression = FSA
-RegOrigin = Tuple[str, bool]  # origin of the regex, negated or not
 
 
 class RegularConstraint:
-    def __init__(self, str_var: str, nfa: RegExpression, origin: RegOrigin):
+    def __init__(self, str_var: str, fsa: RegExpression, fsa_src: str,
+                 neg: bool):
         self.str_var: str = str_var
-        self.nfa: RegExpression = nfa
-        self.origin: RegOrigin = origin
+        self.fsa: RegExpression = fsa
+        self.fsa_src: str = fsa_src
+        self.negation: bool = neg
+
+    def __str__(self):
+        var = f'var: {self.str_var}'
+        neg = f'negation: {self.negation}'
+        src = f'src: {self.fsa_src}'
+        fsa = f'fsa: {{\n{self.fsa}\n}}'
+        return '\n'.join([var, neg, src, fsa])
 
     def negate(self) -> 'RegularConstraint':
-        origin = self.origin[0], not self.origin[1]
-        return self.__class__(self.str_var, self.nfa.complement(), origin)
+        return self.__class__(self.str_var, self.fsa, self.fsa_src,
+                              not self.negation)

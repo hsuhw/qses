@@ -2,9 +2,9 @@ from enum import Enum, unique, auto
 from functools import reduce
 from typing import Dict, List, Union
 
-from fsa import FSA, Alphabet
+from fsa import Alphabet
 from lenc import LengthConstraint, IntExpression
-from regc import RegularConstraint, RegExpression, RegOrigin
+from regc import RegularConstraint, RegExpression
 from tok import INTERNAL_VAR_PREFIX
 from we import WordEquation, StrVariable, StrExpression
 
@@ -73,8 +73,7 @@ class Problem:
         self.alphabet = Alphabet()
         self.word_equations: List[WordEquation] = []
         self.we_inequality_memo: List[bool] = []
-        self.reg_constraints: Dict[str, FSA] = {}
-        self.reg_constraint_src: Dict[str, RegOrigin] = {}
+        self.reg_constraints: Dict[str, List[RegularConstraint]] = {}
         self.len_constraints: List[LengthConstraint] = []
 
     def declare_variable(self, name: str, typ: ValueType):
@@ -107,10 +106,12 @@ class Problem:
                                       self.word_equations)]
 
     def add_regular_constraint(self, cons: RegularConstraint):
-        assert cons.nfa.alphabet == self.alphabet
+        assert cons.fsa.alphabet == self.alphabet
         self.ensure_variable_known(cons.str_var, ValueType.string)
-        self.reg_constraints[cons.str_var] = cons.nfa
-        self.reg_constraint_src[cons.str_var] = cons.origin
+        if cons.str_var in self.reg_constraints:
+            self.reg_constraints[cons.str_var].append(cons)
+        else:
+            self.reg_constraints[cons.str_var] = [cons]
 
     def add_length_constraint(self, cons: LengthConstraint):
         for var in cons.variables():
