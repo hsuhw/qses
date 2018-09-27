@@ -87,7 +87,7 @@ class Problem:
 
     def new_variable(self, typ: ValueType, note: str = None) -> str:
         n = f'_{note}' if note else ''
-        name = f'{INTERNAL_VAR_PREFIX}{typ.name}{n}{self.internal_var_count}'
+        name = f'{INTERNAL_VAR_PREFIX}{typ.name}{self.internal_var_count}{n}'
         self.declare_variable(name, typ)
         self.internal_var_count += 1
         return name
