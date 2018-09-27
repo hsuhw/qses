@@ -44,8 +44,8 @@ class SolveTreeNode:
     def __eq__(self, other):
         if isinstance(other, self.__class__):
             if self.regc_classes and other.regc_classes:
-                return(self.word_equation == other.word_equation and
-                       same_reg_constraints(self.reg_constraints, other.reg_constraints))
+                return self.word_equation == other.word_equation and\
+                       same_reg_constraints(self.reg_constraints, other.reg_constraints)
             elif not self.regc_classes and not other.regc_classes:
                 return self.word_equation == other.word_equation
         return False
@@ -138,6 +138,20 @@ class SolveTree:
             self.node_relations[node] = {transform}
             return True  # True means a new node relation is created
 
+    def num_transitions(self):
+        num = 0
+        for node in self.node_relations:
+            num += len(self.node_relations[node])
+        return num
+
+    def num_nodes(self):
+        all_nodes = set()
+        for node in self.node_relations:
+            all_nodes.add(node)
+            for t in self.node_relations[node]:
+                all_nodes.add(t.source)
+        return len(all_nodes)
+
 
 class InvalidProblemError(Exception):
     pass
@@ -177,16 +191,17 @@ class BasicSolver:
             we = reduce(lambda x, y: x.merge(y), prob.word_equations)
         else:
             we = prob.word_equations[0]
-        node = SolveTreeNode(we, prob.reg_constraints)  # root node
+        node = SolveTreeNode(we, prob.merge_reg_constraints())  # root node
         self.pending_checks: List[SolveTreeNode] = [node]
         self.resolve: SolveTree = SolveTree(node)
-        if prob.reg_constraints:  # has membership(regular) constraints
-            self.alphabet = list(prob.reg_constraints.values())[0].alphabet
+        if prob.has_reg_constraints():  # has membership(regular) constraints
+            self.alphabet = list(node.reg_constraints.values())[0].alphabet
             self.empty_str_fsa = from_str('', self.alphabet)
             self.fsa_classes: FsaClassification = fsa_classification
         else:
             self.alphabet = None
             self.empty_str_fsa = None
+        self.debug = False  # for debug, default False
 
     def transform_with_emptiness(self, node: SolveTreeNode):
         we = node.word_equation
@@ -342,6 +357,15 @@ class BasicSolver:
 
     def update_solve_tree(self, node: SolveTreeNode, new_node: [SolveTreeNode], rewrite: Rewrite,
                           record: TransformRecord):
+        if self.debug:
+            print('----- debug info -----')
+            print(f'from node:\n {print_solve_tree_node_pretty(node)}')
+            if new_node:
+                print(f'to node:\n {print_solve_tree_node_pretty(new_node)}')
+            else:
+                print('to node: None')
+            print(f'rewrite: {rewrite}')
+            print(f'head: {record}')
         if new_node:
             if len(node.word_equation) < len(new_node.word_equation):
                 print("Warning: word equation is not quadratic")
@@ -355,16 +379,28 @@ class BasicSolver:
         while self.pending_checks:
             curr_node = self.pending_checks.pop(0)
             if curr_node.word_equation == self.resolve.success_end:
+                if self.debug:
+                    print('transform case: success_end')
                 pass
             elif curr_node.word_equation.is_simply_unequal():
+                if self.debug:
+                    print('transform case: simply unequal')
                 pass
             elif curr_node.word_equation.has_emptiness():
+                if self.debug:
+                    print('transform case: has emptiness')
                 self.transform_with_emptiness(curr_node)
             elif curr_node.word_equation.is_both_var_headed():
+                if self.debug:
+                    print('transform case: variable-variable')
                 self.transform_both_var_case(curr_node)
             elif curr_node.word_equation.is_char_var_headed():
+                if self.debug:
+                    print('transform case: char-variable')
                 self.transform_char_var_case(curr_node)
             elif curr_node.word_equation.is_var_char_headed():
+                if self.debug:
+                    print('transform case: variable-char')
                 self.transform_var_char_case(curr_node)
             else:
                 assert False
@@ -427,7 +463,7 @@ def print_word_equation_pretty(we: WordEquation) -> str:
         [e.value if not_del(e) else '$' for e in we.lhs]) or '\"\"'
     right_str = ''.join(
         [e.value if not_del(e) else '$' for e in we.rhs]) or '\"\"'
-    return f'{left_str}={right_str}'
+    return f'{left_str} = {right_str}'
 
 
 def print_reg_constraints_pretty(node: SolveTreeNode, indent: str = '') -> str:

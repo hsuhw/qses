@@ -209,7 +209,8 @@ class FsaClassification:
         for i in self.fsa_classes:
             for f in self.fsa_classes[i]:
                 if fsa == f:
-                    self.fsa_classes[i].add(fsa)
+                    # self.fsa_classes[i].add(fsa)
+                    fsa = f
                     return i
                 else:
                     break

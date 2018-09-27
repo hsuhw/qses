@@ -1,8 +1,8 @@
 from enum import Enum, unique, auto
 from functools import reduce
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Optional
 
-from fsa import Alphabet
+from fsa import Alphabet, FSA
 from lenc import LengthConstraint, IntExpression
 from regc import RegularConstraint, RegExpression
 from tok import INTERNAL_VAR_PREFIX
@@ -117,3 +117,26 @@ class Problem:
         for var in cons.variables():
             self.ensure_variable_known(var.value, ValueType.int)
         self.len_constraints.append(cons)
+
+    def has_reg_constraints(self) -> bool:
+        return len(self.reg_constraints) > 0
+
+    def has_len_constraints(self) -> bool:
+        return len(self.len_constraints) > 0
+
+    def merge_reg_constraints(self) -> Optional[Dict[str, FSA]]:
+        if not self.has_reg_constraints():
+            return None
+        ret = dict()
+        for var_name in self.reg_constraints:
+            regcs = self.reg_constraints[var_name]
+            fsa_tmp = regcs[0].fsa
+            if regcs[0].negation:
+                fsa_tmp = fsa_tmp.complement()
+            for r in regcs[1:]:
+                if r.negation:
+                    fsa_tmp = fsa_tmp.intersect(r.fsa.complement())
+                else:
+                    fsa_tmp = fsa_tmp.intersect(r.fsa)
+            ret[var_name] = fsa_tmp
+        return ret
