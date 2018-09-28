@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+path_anchor="$(dirname "$(cd "$(dirname $0)"; pwd)")"
+
+PYTHONPATH="${path_anchor}:${path_anchor}/python" python3 "$0.py" "$@"
