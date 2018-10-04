@@ -116,6 +116,9 @@ class WordEquation:
     def __len__(self):
         return len(self.lhs) + len(self.rhs)
 
+    def __bool__(self):
+        return True
+
     def variables(self) -> Set[StrVariable]:
         return {e for e in self.lhs + self.rhs if isinstance(e, StrVariable)}
 
@@ -208,3 +211,7 @@ class WordEquation:
         return WordEquation([e for sublist in lhs_hoisted for e in sublist],
                             [e for sublist in rhs_hoisted for e in sublist],
                             self.negation)
+
+    def remove_element_from_all(self, elem: StrElement) -> 'WordEquation':
+        return WordEquation([e for e in self.lhs if e != elem],
+                            [e for e in self.rhs if e != elem], self.negation)
