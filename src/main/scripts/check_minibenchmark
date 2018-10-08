@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""
+A Python script to check problem set with qses, cvc4, and z3, then compare their results.
+Usage:
+    check_minibenchmakr path_to_problems
+
+Note:
+    Problem set shall be in a directory as specified
+    Each problem' filename is supposed to have extension '.smt2'
+    The qses script to be used must be in the same directory
+
+Result output:
+    The result will be written in a file named 'path_to_problem.result'
+"""
+import sys
+import os
+_curr_dir = os.path.dirname(os.path.realpath(__file__))
+from subprocess import STDOUT, check_output, CalledProcessError, TimeoutExpired
+from typing import Tuple, List
+
+
+def run_qses(filename: str) -> str:
+    try:
+        output = str(check_output([f'{_curr_dir}/qses_we_check', filename, '&'], stderr=STDOUT, timeout=120))
+    except CalledProcessError as err:
+        output = str(err.output)
+    except TimeoutExpired:
+        return 'timeout'
+    # print(output)
+    if 'unsat' in output:
+        return 'unsat'
+    elif 'sat' in output:
+        return 'sat'
+    else:
+        return 'unknown'
+
+
+def run_cvc4(filename: str) -> str:
+    try:
+        output = str(check_output(['cvc4', '--lang', 'smt', filename], stderr=STDOUT, timeout=120))
+    except CalledProcessError as err:
+        output = str(err.output)
+    except TimeoutExpired:
+        return 'timeout'
+    # print(f'cvc4 output:\n{output}')
+    if 'unsat' in output:
+        return 'unsat'
+    elif 'sat' in output:
+        return 'sat'
+    else:
+        return 'unknown'
+
+
+def run_z3(filename: str) -> str:
+    try:
+        output = str(check_output(['z3', 'smt.string_solver=z3str3', filename], stderr=STDOUT, timeout=120))
+    except CalledProcessError as err:
+        output = str(err.output)
+    except TimeoutExpired:
+        return 'timeout'
+    # print(f'z3 output:\n{output}')
+    if 'unsat' in output:
+        return 'unsat'
+    elif 'sat' in output:
+        return 'sat'
+    else:
+        return 'unknown'
+
+
+def print_tuple(e):
+    return ',  '.join(e)
+
+
+RET_FORMAT = Tuple[str, str, str, str]
+
+
+def write_result(benchmark_path: str, prob_size: int, qses_wrong: List[RET_FORMAT], qses_timeout: List[RET_FORMAT],
+                 inconsistent: List[RET_FORMAT]):
+    with open(f'{os.path.basename(benchmark_path)}.result', 'w') as fp:
+        fp.write(f'path of problem set: {benchmark_path}\n')
+        fp.write(f'number of processed problems:  {prob_size}\n')
+        fp.write(f'\n----- qses wrong: {len(qses_wrong)} cases. format: (filename, qses, cvc4, z3) -----\n')
+        for e in qses_wrong:
+            fp.write(f'{print_tuple(e)}\n')
+        fp.write(f'\n----- qses timeout: {len(qses_timeout)} cases. format: (filename, qses, cvc4, z3) -----\n')
+        for e in qses_timeout:
+            fp.write(f'{print_tuple(e)}\n')
+        fp.write(f'\n----- inconsist results: {len(inconsistent)} cases. format: (filename, qses, cvc4, z3) -----\n')
+        for e in inconsistent:
+            fp.write(f'{print_tuple(e)}\n')
+
+
+def main(argv):
+    benchmark_path = argv[1]
+    os.path.normpath(benchmark_path)
+    # if benchmark_path[-1] == '/':
+    #     benchmark_path = benchmark_path[:-1]
+    names = sorted([f for f in os.listdir(benchmark_path) if '.smt2' in f])
+    prob_size = len(names)
+    print(f'number of problems: {prob_size}')
+    qses_wrong: List[RET_FORMAT] = list()
+    qses_timeout: List[RET_FORMAT] = list()
+    inconsistent: List[RET_FORMAT] = list()
+
+    counter = 0
+    for name in names:
+        filename = f'{benchmark_path}/{name}'
+        ret_cvc4 = run_cvc4(filename)
+        ret_z3 = run_z3(filename)
+        ret_qses = run_qses(filename)
+        print(f'{filename} checked by qses, cvc4 and z3: {ret_qses}, {ret_cvc4}, {ret_z3}')
+
+        ret = (filename, ret_qses, ret_cvc4, ret_z3)
+        if ret_qses != ret_cvc4 or ret_qses != ret_z3 or ret_cvc4 != ret_z3:
+            inconsistent.append(ret)
+        if ret_qses == 'timeout':
+            qses_timeout.append(ret)
+        if (ret_qses == 'sat' and ret_cvc4 == 'unsat') or (ret_qses == 'unsat' and ret_cvc4 == 'sat') or \
+                (ret_qses == 'sat' and ret_z3 == 'unsat') or (ret_qses == 'unsat' and ret_z3 == 'sat'):
+            qses_wrong.append(ret)
+
+        # write when 1000 problems processed to have some results if the script terminates accidentally
+        # each write will overwrite the previous written contents
+        counter += 1
+        if counter % 1000 == 0:
+            write_result(benchmark_path, counter, qses_wrong, qses_timeout, inconsistent)
+
+    # write the final results
+    write_result(benchmark_path, prob_size, qses_wrong, qses_timeout, inconsistent)
+
+
+if __name__ == '__main__':
+    main(sys.argv)

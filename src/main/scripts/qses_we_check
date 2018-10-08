@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""
+A python script to solve word equation only by transformation (ignore length constraints):
+Usage:
+    qses_we_check filename
+"""
+import sys
+import os
+_parent_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.append(_parent_dir)
+sys.path.append(f'{_parent_dir}/python')
+from prob import Problem
+from solver import BasicSolver
+from parsing.basic import parse_file, parse_string
+
+
+def parse_problem(in_str: str, option: str ='file') -> Problem:
+    if option == 'file':
+        problem = parse_file(in_str)
+    elif option == 'string':
+        problem = parse_string(in_str)
+    else:
+        print('Wrong input option. Specify \'file\' or \'string\'')
+    # print('problem read:')
+    # print_problem(problem)
+    return problem
+
+
+def print_problem(problem):
+    for wc in problem.word_equations:
+        print(wc)
+    for lc in problem.len_constraints:
+        print(lc)
+    if problem.has_reg_constraints():
+        regc = problem.reg_constraints
+        for rc in regc:
+            print(f'\n----- {rc} -----')
+            for e in regc[rc]:
+                print(e)
+
+
+def main(argv):
+    assert(len(argv) >= 2)
+    problem = parse_problem(argv[1], 'file')
+    solver = BasicSolver(problem)
+    solver.solve()
+    if solver.resolve.has_solution():
+        print('sat')
+    else:
+        print('unsat')
+
+
+if __name__ == '__main__':
+    main(sys.argv)
