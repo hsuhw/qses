@@ -22,6 +22,13 @@ class Rewrite(Enum):
     rvar_longer_var = auto()
 
 
+class Strategy(Enum):
+    full = auto()
+    first = auto()
+    shortest = auto()
+    var_char_first = auto()
+
+
 TransformRecord = Tuple[Optional[StrElement], Optional[StrElement]]
 RegConstraintClasses = Dict[str, int]
 RegConstraints = Dict[str, FSA]
@@ -83,25 +90,23 @@ class SolveTreeNode:
     def is_unsolvable_node(self):
         if self.reg_constraints:
             return reduce(lambda x, y: x or y,
-                          [we.is_simply_unequal() for we in self.word_equations] or
+                          [we.is_simply_unequal() or we.is_empty_constant() for we in self.word_equations] +
                           [self.reg_constraints[n].is_empty() for n in self.reg_constraints])
         else:
-            return reduce(lambda x, y: x or y, [we.is_simply_unequal() for we in self.word_equations])
+            return reduce(lambda x, y: x or y,
+                          [we.is_simply_unequal() or we.is_empty_constant() for we in self.word_equations])
 
     def get_word_equations_to_solve(self) -> List[WordEquation]:
         return [we for we in self.word_equations if we != self.success_we and not we.is_simply_unequal()]
 
-    def pick_word_equation(self) -> Optional[WordEquation]:
-        we = self.pick_word_equation_heuristic()
-        if we:
-            return we
+    def pick_first_word_equation(self) -> Optional[WordEquation]:
         candidates = [we for we in self.word_equations if we != self.success_we and not we.is_simply_unequal()]
         if len(candidates) > 0:
             return candidates[0]
         else:
             return None
 
-    def pick_word_equation_heuristic(self) -> Optional[WordEquation]:
+    def pick_var_char_word_equation(self) -> Optional[WordEquation]:
         candidates = [we for we in self.word_equations if we != self.success_we and not we.is_simply_unequal()]
         group1 = [we for we in candidates if len(we.lhs) <= 1 or len(we.rhs) <=1]
         if len(group1) > 0:
@@ -233,6 +238,7 @@ class BasicSolver:
         else:
             self.alphabet = None
             self.empty_str_fsa = None
+        self.strategy = Strategy.full
         self.debug = False  # for printing debug info, False by default
 
     def transform_with_emptiness(self, node: SolveTreeNode, we: WordEquation):
@@ -404,31 +410,6 @@ class BasicSolver:
             if self.resolve.add_node(node, new_node, rewrite, record):
                 self.pending_checks.append(new_node)
 
-    def solve(self):
-        while self.pending_checks:
-            node = self.pending_checks.pop(0)
-            if node.is_success_node():
-                if self.debug:
-                    print('transform case: success node')
-                    print(print_solve_tree_node_pretty(node))
-                continue
-            elif node.is_unsolvable_node():
-                if self.debug:
-                    print('transform case: unsolvable node')
-                    print(print_solve_tree_node_pretty(node))
-                continue
-            # proceed transform
-            wes = node.get_word_equations_to_solve()
-            for we in wes:
-                self.process_node(node, we)
-                if self.debug:
-                    print(f'number of pending check nodes: {len(self.pending_checks)}')
-                    print(f'current number of nodes: {self.resolve.num_nodes()}')
-                    input('pause... press enter to continue')
-            if self.debug:
-                # print(f'number of pending check nodes: {len(self.pending_checks)}')
-                print(f'current number of nodes: {self.resolve.num_nodes()}')
-
     def process_node(self, curr_node: SolveTreeNode, curr_we: WordEquation) -> SolveTree:
         # if not curr_we:  # no word equation solvable exists
         #     if self.debug:
@@ -453,6 +434,65 @@ class BasicSolver:
         else:
             assert False
         return self.resolve
+
+    def solve_full(self, node: SolveTreeNode):
+        # strategy 1: proceed transform on all word equations of a node
+        wes = node.get_word_equations_to_solve()
+        for we in wes:
+            self.process_node(node, we)
+            if self.debug:
+                print(f'number of pending check nodes: {len(self.pending_checks)}')
+                print(f'current number of nodes: {self.resolve.num_nodes()}')
+                # input('pause... press enter to continue')
+        if self.debug:
+            # print(f'number of pending check nodes: {len(self.pending_checks)}')
+            print(f'current number of nodes: {self.resolve.num_nodes()}')
+
+    def solve_first(self, node: SolveTreeNode):
+        we = node.pick_first_word_equation()
+        if not we:  # this shall not happen (supposed to be filtered)
+            assert False
+        self.process_node(node, we)
+        if self.debug:
+            print(f'number of pending check nodes: {len(self.pending_checks)}')
+            print(f'current number of nodes: {self.resolve.num_nodes()}')
+            # input('pause... press enter to continue')
+
+    def solve_var_char_first(self, node: SolveTreeNode):
+        we = node.pick_var_char_word_equation()
+        if not we:
+            we = node.pick_first_word_equation()
+        if not we:  # this shall not happen (supposed to be filtered)
+            assert False
+        self.process_node(node, we)
+        if self.debug:
+            print(f'number of pending check nodes: {len(self.pending_checks)}')
+            print(f'current number of nodes: {self.resolve.num_nodes()}')
+            # input('pause... press enter to continue')
+
+    def solve(self, strategy: Strategy = Strategy.full):
+        while self.pending_checks:
+            node = self.pending_checks.pop(0)
+            # strategy 1: proceed transform on all word equations of a node
+            if node.is_success_node():
+                if self.debug:
+                    print('transform case: success node')
+                    print(print_solve_tree_node_pretty(node))
+                continue
+            elif node.is_unsolvable_node():
+                if self.debug:
+                    print('transform case: unsolvable node')
+                    print(print_solve_tree_node_pretty(node))
+                continue
+            # separate different strategies
+            if self.strategy == Strategy.full:
+                self.solve_full(node)
+            elif self.strategy == Strategy.first:
+                self.solve_first(node)
+            elif self.strategy == Strategy.var_char_first:
+                self.solve_var_char_first(node)
+            else:
+                assert False
 
 
 # functions for turn word equations to linear/quadratic form

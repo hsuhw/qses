@@ -146,6 +146,17 @@ class WordEquation:
                 (is_del(lh) and not_del(rh) and not_var(rh)) or
                 (is_del(rh) and not_del(lh) and not_var(lh)))
 
+    def is_empty_constant(self):  # check if one side empty with another side has constants (unsolvable)
+        lh, rh = self.peek()
+        if (not lh and not rh) or (lh and rh):
+            return False
+        elif not lh and rh:
+            return sum([1 for e in self.rhs if is_char(e)]) > 0
+        elif lh and not rh:
+            return sum([1 for e in self.lhs if is_char(e)]) > 0
+        else:
+            assert False
+
     def is_both_var_headed(self):
         lh, rh = self.peek()
         return is_var(lh) and is_var(rh)

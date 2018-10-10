@@ -9,18 +9,21 @@ import os
 _parent_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.append(_parent_dir)
 sys.path.append(f'{_parent_dir}/python')
+from argparse import ArgumentParser
+from typing import Optional
 from prob import Problem
-from solver import BasicSolver
+from solver import BasicSolver, Strategy
 from parsing.basic import parse_file, parse_string
 
 
-def parse_problem(in_str: str, option: str ='file') -> Problem:
+def parse_problem(in_str: str, option: str ='file') -> Optional[Problem]:
     if option == 'file':
         problem = parse_file(in_str)
     elif option == 'string':
         problem = parse_string(in_str)
     else:
         print('Wrong input option. Specify \'file\' or \'string\'')
+        return None
     # print('problem read:')
     # print_problem(problem)
     return problem
@@ -40,14 +43,37 @@ def print_problem(problem):
 
 
 def main(argv):
-    assert(len(argv) >= 2)
-    problem = parse_problem(argv[1], 'file')
+    # Set argument parser
+    arg_parser = ArgumentParser(prog=None,
+                                usage=None,
+                                description="A python script to solve word equation only by transformation "
+                                            "(ignore length constraints):",
+                                epilog=None)
+    arg_parser.add_argument("filename", help="filename to check")
+    arg_parser.add_argument("-s", "--strategy", help="Transform strategy, default is first",
+                            dest="strategy", default="")
+    args = arg_parser.parse_args()
+    # print(args.filename)
+    # print(args.strategy)
+    problem = parse_problem(args.filename)
+    assert problem
     solver = BasicSolver(problem)
+    if args.strategy == 'full':
+        solver.strategy = Strategy.full
+    elif args.strategy == 'first':
+        solver.strategy = Strategy.first
+    elif args.strategy == 'var_char_first':
+        solver.strategy = Strategy.var_char_first
     solver.solve()
-    if solver.resolve.has_solution():
-        print('sat')
+    if args.strategy != '':
+        # msg = f'# of nodes: {solver.resolve.num_nodes()}, # of transitions: {solver.resolve.num_transitions()}, '
+        msg = f'{args.strategy},{solver.resolve.num_nodes()},{solver.resolve.num_transitions()},'
     else:
-        print('unsat')
+        msg = ''
+    if solver.resolve.has_solution():
+        print(msg + 'sat')
+    else:
+        print(msg + 'unsat')
 
 
 if __name__ == '__main__':
