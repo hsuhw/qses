@@ -5,7 +5,7 @@ from typing import List, Tuple, Dict, Set, Optional
 from graphviz import Digraph
 from lenc import LengthConstraint, print_length_constraints_as_strings, internal_len_var_name
 from prob import Problem, ValueType
-from we import WordEquation, StrElement, StrVariable, is_var, is_del, not_del
+from we import WordEquation, StrElement, StrVariable, is_var, is_del, not_del, is_char
 from fsa import FSA, from_str, remove_first_char, split_by_states, FsaClassification
 
 
@@ -550,9 +550,9 @@ def turn_to_quadratic_wes(prob: Problem, wes: Optional[List[WordEquation]] = Non
 # functions for output: pretty print, c program, graphviz, etc.
 def print_word_equation_pretty(we: WordEquation) -> str:
     left_str = ''.join(
-        [e.value if not_del(e) else '$' for e in we.lhs]) or '\"\"'
+        [f'[{e.value}]' if is_var(e) else e.value if is_char(e) else '$' for e in we.lhs]) or '\"\"'
     right_str = ''.join(
-        [e.value if not_del(e) else '$' for e in we.rhs]) or '\"\"'
+        [f'[{e.value}]' if is_var(e) else e.value if is_char(e) else '$' for e in we.rhs]) or '\"\"'
     return f'{left_str} = {right_str}'
 
 

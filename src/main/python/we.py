@@ -51,8 +51,11 @@ StrExpression = List[StrElement]
 HeadPair = Tuple[Optional[StrElement], Optional[StrElement]]
 
 
-def heads_or_none(lhs, rhs) -> HeadPair:
-    [lh], [rh] = lhs[:1] or [None], rhs[:1] or [None]
+def heads_or_none(lhs, rhs, reverse: bool = False) -> HeadPair:
+    if reverse:
+        [lh], [rh] = lhs[-1:] or [None], rhs[-1:] or [None]
+    else:
+        [lh], [rh] = lhs[:1] or [None], rhs[:1] or [None]
     return lh, rh
 
 
@@ -128,6 +131,9 @@ class WordEquation:
     def peek(self) -> HeadPair:
         return heads_or_none(self.lhs, self.rhs)
 
+    def peek_rev(self) -> HeadPair:
+        return heads_or_none(self.lhs, self.rhs, reverse=True)
+
     def copy_expressions(self) -> Tuple[StrExpression, StrExpression]:
         return self.lhs[:], self.rhs[:]  # a faster way to make list copies
 
@@ -140,11 +146,19 @@ class WordEquation:
 
     def is_simply_unequal(self):
         lh, rh = self.peek()
-        return ((is_char(lh) and is_char(rh) and lh != rh) or
+        lh_r, rh_r = self.peek_rev()
+        ret1 = ((is_char(lh) and is_char(rh) and lh != rh) or
                 (not lh and rh and not_var(rh)) or
                 (not rh and lh and not_var(lh)) or
                 (is_del(lh) and not_del(rh) and not_var(rh)) or
                 (is_del(rh) and not_del(lh) and not_var(lh)))
+        ret2 = ((is_char(lh_r) and is_char(rh_r) and lh_r != rh_r) or
+                (not lh_r and rh_r and not_var(rh_r)) or
+                (not rh_r and lh_r and not_var(lh_r)) or
+                (is_del(lh_r) and not_del(rh_r) and not_var(rh_r)) or
+                (is_del(rh_r) and not_del(lh_r) and not_var(lh_r)))
+        return ret1 or ret2
+        # return ret1
 
     def is_empty_constant(self):  # check if one side empty with another side has constants (unsolvable)
         lh, rh = self.peek()
