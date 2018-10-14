@@ -20,10 +20,11 @@ from typing import Tuple, List
 from argparse import ArgumentParser
 
 
-strategy_options = ['full', 'first', 'var_char_first']
+# global settings
+strategy_options = ['first', 'shortest', 'one_elem_first', 'var_char_first', 'empty_vars_first']  # ignore 'full'
 RET_FORMAT = Tuple[str, str, str, str]
-# STRATEGY_COMP_FORMAT = Tuple[str, str, str, str]
 STRATEGY_COMP_FORMAT = List[str]
+_column_width = 16
 
 
 def run_qses(filename: str, strategy: str = '') -> str:
@@ -124,7 +125,7 @@ def write_result_strategy(benchmark_path: str, prob_size: int, result: List[Tupl
         fp.write(f'number of processed problems:  {prob_size}\n')
         for res in result:
             fp.write(f'\n{res[0]}: (strategy, # nodes, # transitions, sat/unsat?)\n')
-            fp.write('    ' + '\n    '.join([', '.join([s.rjust(15) for s in e]) for e in res[1]]) + '\n')
+            fp.write('    ' + '\n    '.join([', '.join([s.rjust(_column_width) for s in e]) for e in res[1]]) + '\n')
 
 
 def double_check(benchmark_path: str, names: List[str], strategy: str):
@@ -170,8 +171,9 @@ def strategy_comparison(benchmark_path: str, names: List[str]):
         filename = f'{benchmark_path}/{name}'
         ret_qses = run_qses_strategy_comp(filename)
         print(f'\n{name} checked by qses, comparing transform strategies:')
-        print('    ' + ', '.join([e.rjust(15) for e in ['strategy', '# nodes', '# transitions', 'sat/unsat?']]))
-        print('    ' + '\n    '.join([', '.join([s.rjust(15) for s in e]) for e in ret_qses]))
+        print('    ' +
+              ', '.join([e.rjust(_column_width) for e in ['strategy', '# nodes', '# transitions', 'sat/unsat?']]))
+        print('    ' + '\n    '.join([', '.join([s.rjust(_column_width) for s in e]) for e in ret_qses]))
         if not is_zero_unsat(ret_qses):  # filter out cases of zero node/transition and unsat
             results.append((name, ret_qses))
 
@@ -194,7 +196,7 @@ def main(argv):
                                 epilog=None)
     arg_parser.add_argument("benchmark_path", help="path of benchmarks")
     arg_parser.add_argument("-c", "--compare",
-                            help="Report comparison of qses transform strategies, default is off. "
+                            help="Report comparison of qses transform strategies, default is off (double check). "
                                  "If set on, double check is disabled.",
                             dest="compare", default="off")
     arg_parser.add_argument("-s", "--strategy",

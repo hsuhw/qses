@@ -62,8 +62,14 @@ def main(argv):
         solver.strategy = Strategy.full
     elif args.strategy == 'first':
         solver.strategy = Strategy.first
+    elif args.strategy == 'shortest':
+        solver.strategy = Strategy.shortest
+    elif args.strategy == 'one_elem_first':
+        solver.strategy = Strategy.one_elem_first
     elif args.strategy == 'var_char_first':
         solver.strategy = Strategy.var_char_first
+    elif args.strategy == 'empty_vars_first':
+        solver.strategy = Strategy.empty_vars_first
     solver.solve()
     if args.strategy != '':
         # msg = f'# of nodes: {solver.resolve.num_nodes()}, # of transitions: {solver.resolve.num_transitions()}, '

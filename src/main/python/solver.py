@@ -1,11 +1,12 @@
 from enum import Enum, unique, auto
 from functools import reduce
+from itertools import chain, combinations
 from typing import List, Tuple, Dict, Set, Optional
 
 from graphviz import Digraph
 from lenc import LengthConstraint, print_length_constraints_as_strings, internal_len_var_name
 from prob import Problem, ValueType
-from we import WordEquation, StrElement, StrVariable, is_var, is_del, not_del, is_char
+from we import WordEquation, StrElement, StrVariable, is_var, is_del, is_char
 from fsa import FSA, from_str, remove_first_char, split_by_states, FsaClassification
 
 
@@ -26,7 +27,9 @@ class Strategy(Enum):
     full = auto()
     first = auto()
     shortest = auto()
+    one_elem_first = auto()
     var_char_first = auto()
+    empty_vars_first = auto()
 
 
 TransformRecord = Tuple[Optional[StrElement], Optional[StrElement]]
@@ -83,6 +86,9 @@ class SolveTreeNode:
     def __hash__(self):
         return hash(repr(self))
 
+    def variables(self) -> Set[StrVariable]:
+        return reduce(lambda x, y: x | y, [e.variables() for e in self.word_equations])
+
     def is_success_node(self):
         # return reduce(lambda x, y: x and y, map(lambda x: x == self.success_we, self.word_equations))
         return reduce(lambda x, y: x and y, [e == self.success_we for e in self.word_equations])
@@ -108,7 +114,24 @@ class SolveTreeNode:
 
     def pick_var_char_word_equation(self) -> Optional[WordEquation]:
         candidates = [we for we in self.word_equations if we != self.success_we and not we.is_simply_unequal()]
-        group1 = [we for we in candidates if len(we.lhs) <= 1 or len(we.rhs) <=1]
+        group1 = [we for we in candidates if we.is_char_var_headed() or we.is_var_char_headed() or we.has_emptiness()]
+        if len(group1) > 0:
+            return group1[0]
+        else:
+            return None
+
+    def pick_shortest_word_equation(self) -> Optional[WordEquation]:
+        candidates = [we for we in self.word_equations if we != self.success_we and not we.is_simply_unequal()]
+        if len(candidates) > 0:
+            candidates_len = [len(we) for we in candidates]
+            min_idx = candidates_len.index(min(candidates_len))
+            return candidates[min_idx]
+        else:
+            return None
+
+    def pick_one_elem_word_equation(self) -> Optional[WordEquation]:  # only one or zero element in one side
+        candidates = [we for we in self.word_equations if we != self.success_we and not we.is_simply_unequal()]
+        group1 = [we for we in candidates if len(we.lhs) <= 1 or len(we.rhs) <= 1]
         if len(group1) > 0:
             return group1[0]
         else:
@@ -239,9 +262,12 @@ class BasicSolver:
             self.alphabet = None
             self.empty_str_fsa = None
         self.strategy = Strategy.full
+        self.disable_var_empty_transform = False  # special flag
         self.debug = False  # for printing debug info, False by default
 
     def transform_with_emptiness(self, node: SolveTreeNode, we: WordEquation):
+        if self.disable_var_empty_transform:
+            return
         lh, rh = hh = we.peek()
         if (not lh or is_del(lh)) and rh and is_var(rh):
             new_wes = [e.remove_element_from_all(rh).trim_prefix() for e in node.word_equations]
@@ -255,11 +281,12 @@ class BasicSolver:
     def transform_both_var_case(self, node: SolveTreeNode, we: WordEquation):
         lh, rh = hh = we.peek()
 
-        case1_wes = [e.remove_element_from_all(lh).trim_prefix() for e in node.word_equations]
-        self.process_reg_constraints(node, case1_wes, Rewrite.lvar_be_empty, hh)
+        if not self.disable_var_empty_transform:
+            case1_wes = [e.remove_element_from_all(lh).trim_prefix() for e in node.word_equations]
+            self.process_reg_constraints(node, case1_wes, Rewrite.lvar_be_empty, hh)
 
-        case2_wes = [e.remove_element_from_all(rh).trim_prefix() for e in node.word_equations]
-        self.process_reg_constraints(node, case2_wes, Rewrite.rvar_be_empty, hh)
+            case2_wes = [e.remove_element_from_all(rh).trim_prefix() for e in node.word_equations]
+            self.process_reg_constraints(node, case2_wes, Rewrite.rvar_be_empty, hh)
 
         case3_wes = [e.replace(lh, rh).trim_prefix() for e in node.word_equations]
         self.process_reg_constraints(node, case3_wes, Rewrite.lvar_be_rvar, hh)
@@ -273,8 +300,9 @@ class BasicSolver:
     def transform_char_var_case(self, node: SolveTreeNode, we: WordEquation):
         lh, rh = hh = we.peek()
 
-        case1_wes = [e.remove_element_from_all(rh).trim_prefix() for e in node.word_equations]
-        self.process_reg_constraints(node, case1_wes, Rewrite.rvar_be_empty, hh)
+        if not self.disable_var_empty_transform:
+            case1_wes = [e.remove_element_from_all(rh).trim_prefix() for e in node.word_equations]
+            self.process_reg_constraints(node, case1_wes, Rewrite.rvar_be_empty, hh)
 
         case2_wes = [e.replace(rh, lh).trim_prefix() for e in node.word_equations]
         self.process_reg_constraints(node, case2_wes, Rewrite.rvar_be_char, hh)
@@ -285,14 +313,37 @@ class BasicSolver:
     def transform_var_char_case(self, node: SolveTreeNode, we: WordEquation):
         lh, rh = hh = we.peek()
 
-        case1_we = [e.remove_element_from_all(lh).trim_prefix() for e in node.word_equations]
-        self.process_reg_constraints(node, case1_we, Rewrite.lvar_be_empty, hh)
+        if not self.disable_var_empty_transform:
+            case1_we = [e.remove_element_from_all(lh).trim_prefix() for e in node.word_equations]
+            self.process_reg_constraints(node, case1_we, Rewrite.lvar_be_empty, hh)
 
         case2_we = [e.replace(lh, rh).trim_prefix() for e in node.word_equations]
         self.process_reg_constraints(node, case2_we, Rewrite.lvar_be_char, hh)
 
         case3_we = [e.replace_with(lh, [rh, lh]).trim_prefix() for e in node.word_equations]
         self.process_reg_constraints(node, case3_we, Rewrite.lvar_longer_char, hh)
+
+    def transform_all_vars_empty(self, node: SolveTreeNode):
+        # perform transform towards each element of the powerset of variables of given node
+        variables = node.variables()
+        vars_ps = powerset(variables)
+        for vars_tuple in vars_ps:
+            # perform element removal towards all variables of each tuple, then proceed to construction of solve tree
+            if self.debug:
+                print(f'vars_tuple: {vars_tuple}')
+            wes = [e.remove_element_from_all(vars_tuple[0]).trim_prefix() for e in node.word_equations]
+            for i in range(1, len(vars_tuple)):
+                wes = [e.remove_element_from_all(vars_tuple[i]).trim_prefix() for e in wes]
+            self.process_reg_constraints(node, wes, Rewrite.lvar_be_empty, (None, None))
+        if self.debug:
+            print('transform powerset of all variables empty at first.')
+            print(f'    number of veriables: {len(variables)}')
+            print(f'    number of pending check nodes: {len(self.pending_checks)}')
+            print(f'    current number of nodes: {self.resolve.num_nodes()}')
+            nodes = [node for node in self.pending_checks if not node.is_unsolvable_node()]
+            for n in nodes:
+                print(f'{print_solve_tree_node_pretty(n)}\n')
+            input('pause... press enter to continue')
 
     def process_reg_constraints(self, node: SolveTreeNode, wes: List[WordEquation], rewrite: Rewrite,
                                 record: TransformRecord):
@@ -409,6 +460,11 @@ class BasicSolver:
                 exit(1)
             if self.resolve.add_node(node, new_node, rewrite, record):
                 self.pending_checks.append(new_node)
+                if self.debug:
+                    print('new node')
+            else:
+                if self.debug:
+                    print('existing node')
 
     def process_node(self, curr_node: SolveTreeNode, curr_we: WordEquation) -> SolveTree:
         # if not curr_we:  # no word equation solvable exists
@@ -470,10 +526,33 @@ class BasicSolver:
             print(f'current number of nodes: {self.resolve.num_nodes()}')
             # input('pause... press enter to continue')
 
-    def solve(self, strategy: Strategy = Strategy.full):
+    def solve_shortest(self, node: SolveTreeNode):
+        we = node.pick_shortest_word_equation()
+        if not we:
+            we = node.pick_first_word_equation()
+        if not we:  # this shall not happen (supposed to be filtered)
+            assert False
+        self.process_node(node, we)
+        if self.debug:
+            print(f'number of pending check nodes: {len(self.pending_checks)}')
+            print(f'current number of nodes: {self.resolve.num_nodes()}')
+            # input('pause... press enter to continue')
+
+    def solve_one_elem_first(self, node: SolveTreeNode):
+        we = node.pick_one_elem_word_equation()
+        if not we:
+            we = node.pick_first_word_equation()
+        if not we:  # this shall not happen (supposed to be filtered)
+            assert False
+        self.process_node(node, we)
+        if self.debug:
+            print(f'number of pending check nodes: {len(self.pending_checks)}')
+            print(f'current number of nodes: {self.resolve.num_nodes()}')
+            # input('pause... press enter to continue')
+
+    def solve(self):
         while self.pending_checks:
             node = self.pending_checks.pop(0)
-            # strategy 1: proceed transform on all word equations of a node
             if node.is_success_node():
                 if self.debug:
                     print('transform case: success node')
@@ -489,10 +568,25 @@ class BasicSolver:
                 self.solve_full(node)
             elif self.strategy == Strategy.first:
                 self.solve_first(node)
+            elif self.strategy == Strategy.shortest:
+                self.solve_shortest(node)
+            elif self.strategy == Strategy.one_elem_first:
+                self.solve_one_elem_first(node)
             elif self.strategy == Strategy.var_char_first:
                 self.solve_var_char_first(node)
+            elif self.strategy == Strategy.empty_vars_first:
+                self.transform_all_vars_empty(node)  # only do this once on root node
+                self.pending_checks.append(node)  # root node should be processed with normal transform rules
+                self.disable_var_empty_transform = True
+                self.strategy = Strategy.first  # use strategy first for the rest nodes
             else:
                 assert False
+
+
+# powerset without empty set, returns list of tuples
+def powerset(iterable):  # powerset({1,2,3}) --> (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)
+    s = list(iterable)
+    return list(chain.from_iterable(combinations(s, r) for r in range(1, len(s)+1)))
 
 
 # functions for turn word equations to linear/quadratic form
