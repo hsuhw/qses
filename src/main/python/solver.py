@@ -27,9 +27,11 @@ class Strategy(Enum):
     full = auto()
     first = auto()
     shortest = auto()
+    shortest_side = auto()
     one_elem_first = auto()
     var_char_first = auto()
     empty_vars_first = auto()
+    customized = auto()
 
 
 TransformRecord = Tuple[Optional[StrElement], Optional[StrElement]]
@@ -120,10 +122,13 @@ class SolveTreeNode:
         else:
             return None
 
-    def pick_shortest_word_equation(self) -> Optional[WordEquation]:
+    def pick_shortest_word_equation(self, side: bool = False) -> Optional[WordEquation]:
         candidates = [we for we in self.word_equations if we != self.success_we and not we.is_simply_unequal()]
         if len(candidates) > 0:
-            candidates_len = [len(we) for we in candidates]
+            if side:  # seek the lower side length of a word equation
+                candidates_len = [we.min_side_len() for we in candidates]
+            else:  # seek the total length of a word equation
+                candidates_len = [len(we) for we in candidates]
             min_idx = candidates_len.index(min(candidates_len))
             return candidates[min_idx]
         else:
@@ -261,7 +266,7 @@ class BasicSolver:
         else:
             self.alphabet = None
             self.empty_str_fsa = None
-        self.strategy = Strategy.full
+        self.strategy = Strategy.first
         self.disable_var_empty_transform = False  # special flag
         self.debug = False  # for printing debug info, False by default
 
@@ -538,8 +543,34 @@ class BasicSolver:
             print(f'current number of nodes: {self.resolve.num_nodes()}')
             # input('pause... press enter to continue')
 
+    def solve_shortest_side(self, node: SolveTreeNode):
+        we = node.pick_shortest_word_equation(side=True)
+        if not we:
+            we = node.pick_first_word_equation()
+        if not we:  # this shall not happen (supposed to be filtered)
+            assert False
+        self.process_node(node, we)
+        if self.debug:
+            print(f'number of pending check nodes: {len(self.pending_checks)}')
+            print(f'current number of nodes: {self.resolve.num_nodes()}')
+            # input('pause... press enter to continue')
+
     def solve_one_elem_first(self, node: SolveTreeNode):
         we = node.pick_one_elem_word_equation()
+        if not we:
+            we = node.pick_first_word_equation()
+        if not we:  # this shall not happen (supposed to be filtered)
+            assert False
+        self.process_node(node, we)
+        if self.debug:
+            print(f'number of pending check nodes: {len(self.pending_checks)}')
+            print(f'current number of nodes: {self.resolve.num_nodes()}')
+            # input('pause... press enter to continue')
+
+    def solve_customized(self, node: SolveTreeNode):  # one element side first, then shortest side
+        we = node.pick_one_elem_word_equation()
+        if not we:
+            we = node.pick_shortest_word_equation(side=True)
         if not we:
             we = node.pick_first_word_equation()
         if not we:  # this shall not happen (supposed to be filtered)
@@ -570,6 +601,8 @@ class BasicSolver:
                 self.solve_first(node)
             elif self.strategy == Strategy.shortest:
                 self.solve_shortest(node)
+            elif self.strategy == Strategy.shortest_side:
+                self.solve_shortest_side(node)
             elif self.strategy == Strategy.one_elem_first:
                 self.solve_one_elem_first(node)
             elif self.strategy == Strategy.var_char_first:
@@ -579,6 +612,8 @@ class BasicSolver:
                 self.pending_checks.append(node)  # root node should be processed with normal transform rules
                 self.disable_var_empty_transform = True
                 self.strategy = Strategy.first  # use strategy first for the rest nodes
+            elif self.strategy == Strategy.customized:
+                self.solve_customized(node)
             else:
                 assert False
 

@@ -119,6 +119,9 @@ class WordEquation:
     def __len__(self):
         return len(self.lhs) + len(self.rhs)
 
+    def min_side_len(self):
+        return min(len(self.lhs), len(self.rhs))
+
     def __bool__(self):
         return True
 

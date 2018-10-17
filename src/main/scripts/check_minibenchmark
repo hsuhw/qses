@@ -20,9 +20,9 @@ from typing import Tuple, List
 from argparse import ArgumentParser
 
 
-# global settings
-strategy_options = ['first', 'shortest', 'one_elem_first', 'var_char_first', 'empty_vars_first']  # ignore 'full'
-RET_FORMAT = Tuple[str, str, str, str]
+# global settings (ignore 'full', 'customized')
+strategy_options = ['first', 'shortest', 'shortest_side', 'one_elem_first', 'var_char_first', 'empty_vars_first']
+RET_FORMAT = Tuple[str, str, str, str, str]
 STRATEGY_COMP_FORMAT = List[str]
 _column_width = 16
 
@@ -79,9 +79,25 @@ def run_cvc4(filename: str) -> str:
         return 'unknown'
 
 
-def run_z3(filename: str) -> str:
+def run_z3str3(filename: str) -> str:  # specify string solver z3str3
     try:
         output = str(check_output(['z3', 'smt.string_solver=z3str3', filename], stderr=STDOUT, timeout=120))
+    except CalledProcessError as err:
+        output = str(err.output)
+    except TimeoutExpired:
+        return 'timeout'
+    # print(f'z3 output:\n{output}')
+    if 'unsat' in output:
+        return 'unsat'
+    elif 'sat' in output:
+        return 'sat'
+    else:
+        return 'unknown'
+
+
+def run_z3(filename: str) -> str:  # without specifying z3str3 string solver
+    try:
+        output = str(check_output(['z3', filename], stderr=STDOUT, timeout=120))
     except CalledProcessError as err:
         output = str(err.output)
     except TimeoutExpired:
@@ -108,13 +124,14 @@ def write_result_double_check(benchmark_path: str, prob_size: int, strategy: str
             fp.write(f'qses strategy set: default\n')
         else:
             fp.write(f'qses strategy set: {strategy}\n')
-        fp.write(f'\n----- qses wrong: {len(qses_wrong)} cases. format: (filename, qses, cvc4, z3) -----\n')
+        fp.write(f'\n----- qses wrong: {len(qses_wrong)} cases. format: (filename, qses, cvc4, z3, z3str3) -----\n')
         for e in qses_wrong:
             fp.write(f'{print_tuple(e)}\n')
-        fp.write(f'\n----- qses timeout: {len(qses_timeout)} cases. format: (filename, qses, cvc4, z3) -----\n')
+        fp.write(f'\n----- qses timeout: {len(qses_timeout)} cases. format: (filename, qses, cvc4, z3, z3str3) -----\n')
         for e in qses_timeout:
             fp.write(f'{print_tuple(e)}\n')
-        fp.write(f'\n----- inconsist results: {len(inconsistent)} cases. format: (filename, qses, cvc4, z3) -----\n')
+        fp.write(f'\n----- inconsist results: {len(inconsistent)} cases. '
+                 f'format: (filename, qses, cvc4, z3, z3str3) -----\n')
         for e in inconsistent:
             fp.write(f'{print_tuple(e)}\n')
 
@@ -135,18 +152,21 @@ def double_check(benchmark_path: str, names: List[str], strategy: str):
     counter = 0
     for name in names:
         filename = f'{benchmark_path}/{name}'
+        ret_qses = run_qses(filename, strategy)
         ret_cvc4 = run_cvc4(filename)
         ret_z3 = run_z3(filename)
-        ret_qses = run_qses(filename, strategy)
-        print(f'{name} checked by qses, cvc4 and z3: {ret_qses}, {ret_cvc4}, {ret_z3}')
+        ret_z3str3 = run_z3str3(filename)
+        print(f'{name} checked by qses, cvc4, z3, z3str3: {ret_qses}, {ret_cvc4}, {ret_z3}, {ret_z3str3}')
 
-        ret = (name, ret_qses, ret_cvc4, ret_z3)
-        if ret_qses != ret_cvc4 or ret_qses != ret_z3 or ret_cvc4 != ret_z3:
+        ret = (name, ret_qses, ret_cvc4, ret_z3, ret_z3str3)
+        if ret_qses != ret_cvc4 or ret_qses != ret_z3 or ret_qses != ret_z3str3 or \
+                ret_cvc4 != ret_z3 or ret_cvc4 != ret_z3str3 or ret_z3 != ret_z3str3:
             inconsistent.append(ret)
         if ret_qses == 'timeout':
             qses_timeout.append(ret)
         if (ret_qses == 'sat' and ret_cvc4 == 'unsat') or (ret_qses == 'unsat' and ret_cvc4 == 'sat') or \
-                (ret_qses == 'sat' and ret_z3 == 'unsat') or (ret_qses == 'unsat' and ret_z3 == 'sat'):
+                (ret_qses == 'sat' and ret_z3 == 'unsat') or (ret_qses == 'unsat' and ret_z3 == 'sat') or \
+                (ret_qses == 'sat' and ret_z3str3 == 'unsat') or (ret_qses == 'unsat' and ret_z3str3 == 'sat'):
             qses_wrong.append(ret)
 
         # write when 1000 problems processed to have some results if the script terminates accidentally

@@ -7,11 +7,17 @@ from argparse import ArgumentParser
 from typing import Tuple, List
 
 symbols = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+max_elems = 6
+min_elems = 1
 max_num_we = 3
-max_len_we = 3
+# max_len_we = 3
 
 
 Elem = Tuple[int, int]
+
+
+def random_elem_len() -> int:
+    return random.randrange(min_elems, max_elems + 1)
 
 
 def num_occurrence(l: List[Elem], c: Elem):
@@ -33,10 +39,14 @@ class ElemList:
     def __init__(self):
         self.lhs: List[Elem] = list()
         self.rhs: List[Elem] = list()
+        self.lhs_len = random_elem_len()
+        self.rhs_len = random_elem_len()
 
     def assign(self, l1: List[Elem], l2: List[Elem]):
         self.lhs: List[Elem] = l1
         self.rhs: List[Elem] = l2
+        self.lhs_len = len(l1)
+        self.rhs_len = len(l2)
 
     def __len__(self) -> int:
         return len(self.lhs) + len(self.rhs)
@@ -44,7 +54,7 @@ class ElemList:
     def __eq__(self, other):
         if not isinstance(other, ElemList):
             return False
-        if len(self) != len(other):
+        if len(self) != len(other) or self.lhs_len != other.lhs_len or self.rhs_len != other.rhs_len:
             return False
         if self.lhs == other.lhs and self.rhs == other.rhs:
             return True
@@ -61,49 +71,39 @@ class ElemList:
         return hash(str(self))
 
     def is_full(self):
-        return len(self.lhs) == max_len_we and len(self.rhs) == max_len_we
+        return len(self.lhs) == self.lhs_len and len(self.rhs) == self.rhs_len
 
     def num_occurrence(self, e: Elem):
         return num_occurrence(self.lhs, e) + num_occurrence(self.rhs, e)
 
     def put_elem(self, e: Elem) -> bool:
-        if len(self.lhs) < max_len_we:
+        if len(self.lhs) < self.lhs_len:
             self.lhs.append(e)
             return True
-        elif len(self.rhs) < max_len_we:
+        elif len(self.rhs) < self.rhs_len:
             self.rhs.append(e)
             return True
         else:
             return False
 
-    def export_smt_3(self):  # assume length is 3
-        if not self.is_full():
-            return ''
+    def export_smt(self):
+        assert self.is_full()
 
-        elem_1 = export_elem_smt(self.lhs[0])
-        elem_2 = export_elem_smt(self.lhs[1])
-        elem_3 = export_elem_smt(self.lhs[2])
-        elem_4 = export_elem_smt(self.rhs[0])
-        elem_5 = export_elem_smt(self.rhs[1])
-        elem_6 = export_elem_smt(self.rhs[2])
-        return f'(assert (= (str.++ {elem_1} (str.++ {elem_2} {elem_3})) (str.++ {elem_4} (str.++ {elem_5} {elem_6}))))'
+        # lhs_str = ''
+        # rhs_str = ''
+        # for idx in reversed(range(self.lhs_len)):
+        #     lhs_str = export_smt_elems(idx, self.lhs_len, self.lhs, lhs_str)
+        # for idx in reversed(range(self.rhs_len)):
+        #     rhs_str = export_smt_elems(idx, self.rhs_len, self.rhs, rhs_str)
 
-    def export_smt(self):  # assume length is 3
-        if not self.is_full():
-            return ''
-
-        def export_smt_inner(idx: int, exp_str_l: str = '', exp_str_r: str = '') -> Tuple[str, str]:
-            if max_len_we - idx == 1:
-                assert exp_str_l == '' and exp_str_r == ''
-                return export_elem_smt(self.lhs[idx]), export_elem_smt(self.rhs[idx])
-            else:
-                return f'(str.++ {export_elem_smt(self.lhs[idx])} {exp_str_l})', \
-                       f'(str.++ {export_elem_smt(self.rhs[idx])} {exp_str_r})'
-
-        lhs_str = ''
-        rhs_str = ''
-        for idx in reversed(range(max_len_we)):
-            lhs_str, rhs_str = export_smt_inner(idx, lhs_str, rhs_str)
+        if self.lhs_len == 1:
+            lhs_str = export_elem_smt(self.lhs[0])
+        else:
+            lhs_str = '(str.++ ' + ' '.join([export_elem_smt(e) for e in self.lhs]) + ')'
+        if self.rhs_len == 1:
+            rhs_str = export_elem_smt(self.rhs[0])
+        else:
+            rhs_str = '(str.++ ' + ' '.join([export_elem_smt(e) for e in self.rhs]) + ')'
 
         return f'(assert (= {lhs_str} {rhs_str}))'
 
@@ -115,8 +115,12 @@ def export_elem_smt(e: Elem) -> str:
         return f'\"{symbols[e[0]]}\"'
 
 
-def export_concat(str1: str, str2: str) -> str:
-    return f'(str.++ {str1} {str2})'
+def export_smt_elems(idx: int, max_len: int, elems: List[Elem], exp_str: str = '') -> str:
+    if max_len - idx == 1:
+        assert exp_str == ''
+        return export_elem_smt(elems[idx])
+    else:
+        return f'(str.++ {export_elem_smt(elems[idx])} {exp_str})'
 
 
 class Problem:
