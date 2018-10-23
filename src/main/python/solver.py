@@ -5,7 +5,7 @@ from typing import List, Tuple, Dict, Set, Optional
 
 from graphviz import Digraph
 from lenc import LengthConstraint, print_length_constraints_as_strings, internal_len_var_name
-from prob import Problem, ValueType
+from prob import Problem, ValueType, internal_str_var_origin_name
 from we import WordEquation, StrElement, StrVariable, is_var, is_del, is_char
 from fsa import FSA, from_str, remove_first_char, split_by_states, FsaClassification
 
@@ -90,6 +90,9 @@ class SolveTreeNode:
 
     def variables(self) -> Set[StrVariable]:
         return reduce(lambda x, y: x | y, [e.variables() for e in self.word_equations])
+
+    def var_occurrence(self, elem: StrVariable):
+        return sum([we.var_occurrence(elem) for we in self.word_equations])
 
     def is_success_node(self):
         # return reduce(lambda x, y: x and y, map(lambda x: x == self.success_we, self.word_equations))
@@ -266,8 +269,10 @@ class BasicSolver:
         else:
             self.alphabet = None
             self.empty_str_fsa = None
-        self.strategy = Strategy.first
+        self.problem = prob  # reference to problem data (for on_the_fly_quadratic)
+        self.strategy = Strategy.first  # word equation selection strategies
         self.disable_var_empty_transform = False  # special flag
+        self.on_the_fly_quadratic = False  # incrementally turning word equations to quadratic during transform
         self.debug = False  # for printing debug info, False by default
 
     def transform_with_emptiness(self, node: SolveTreeNode, we: WordEquation):
@@ -296,9 +301,19 @@ class BasicSolver:
         case3_wes = [e.replace(lh, rh).trim_prefix() for e in node.word_equations]
         self.process_reg_constraints(node, case3_wes, Rewrite.lvar_be_rvar, hh)
 
+        if self.on_the_fly_quadratic:
+            if node.var_occurrence(lh) > 2:
+                print(f'perform incremential quadratic: {lh}')
+                turn_one_var_to_quadratic(lh, node, self.problem)
+                print(print_solve_tree_node_pretty(node))
         case4_wes = [e.replace_with(lh, [rh, lh]).trim_prefix() for e in node.word_equations]
         self.process_reg_constraints(node, case4_wes, Rewrite.lvar_longer_var, hh)
 
+        if self.on_the_fly_quadratic:
+            if node.var_occurrence(rh) > 2:
+                print(f'perform incremential quadratic: {rh}')
+                turn_one_var_to_quadratic(rh, node, self.problem)
+                print(print_solve_tree_node_pretty(node))
         case5_wes = [e.replace_with(rh, [lh, rh]).trim_prefix() for e in node.word_equations]
         self.process_reg_constraints(node, case5_wes, Rewrite.rvar_longer_var, hh)
 
@@ -472,10 +487,6 @@ class BasicSolver:
                     print('existing node')
 
     def process_node(self, curr_node: SolveTreeNode, curr_we: WordEquation) -> SolveTree:
-        # if not curr_we:  # no word equation solvable exists
-        #     if self.debug:
-        #         print('transform case: no solvable word equation')
-        #     pass
         if curr_we.has_emptiness():
             if self.debug:
                 print('transform case: has emptiness')
@@ -630,6 +641,7 @@ def turn_to_linear_wes(prob: Problem, wes: Optional[List[WordEquation]] = None):
     occurred_var: Set[StrElement] = set()
 
     def _turn_to_linear(expr):
+        nonlocal occurred_var
         for index, e in enumerate(expr):
             if e in occurred_var:
                 var_copy_name = prob.new_variable(ValueType.string, e.value)
@@ -648,12 +660,48 @@ def turn_to_linear_wes(prob: Problem, wes: Optional[List[WordEquation]] = None):
         _turn_to_linear(we.rhs)
 
 
+# rename a string variable if it occurs more than twice in a node
+def turn_one_var_to_quadratic(var: StrVariable, node: SolveTreeNode, prob: Problem):
+    if node.var_occurrence(var) <= 2:  # do nothing if no more than two occurrences
+        return
+
+    var_occurred_count: int = 0
+    var_new_name: str = ''
+    new_var: Optional[StrVariable] = None
+
+    def _replace(expr):
+        nonlocal var_occurred_count, var_new_name, new_var
+        for index, e in enumerate(expr):
+            if e == var:
+                var_occurred_count += 1
+                if var_occurred_count > 2:
+                    # first time of replace, generate new var name and add corresponding length and regular constraints
+                    if var_new_name == '' and not new_var:
+                        var_original_name = internal_str_var_origin_name(var.value)
+                        if var_original_name:
+                            var_new_name = prob.new_variable(ValueType.string, var_original_name)
+                        else:
+                            var_new_name = prob.new_variable(ValueType.string, var.value)
+                        new_var = StrVariable(var_new_name)
+                        lc = LengthConstraint([var.length()], [new_var.length()])
+                        prob.add_length_constraint(lc)
+                        reg_cons = prob.reg_constraints
+                        if var.value in reg_cons:
+                            reg_cons[new_var.value] = reg_cons[var.value]
+                    expr[index] = new_var
+
+    for we in node.word_equations:
+        _replace(we.lhs)
+        _replace(we.rhs)
+
+
 def turn_to_quadratic_wes(prob: Problem, wes: Optional[List[WordEquation]] = None):
     tgt_wes = wes or prob.word_equations
     occurred_var_count: Dict[StrElement, int] = dict()
     curr_var_copies: Dict[StrElement, StrElement] = dict()
 
     def _turn_to_quadratic(expr):
+        nonlocal occurred_var_count, curr_var_copies
         for index, e in enumerate(expr):
             if e in occurred_var_count:
                 occurred_var_count[e] += 1
@@ -839,11 +887,11 @@ def print_tree_dot_pretty(tree: SolveTree) -> str:
 
     dot = Digraph(name=name, comment=name)
     for k in tree.node_relations.keys():
-        node_str = print_word_equation_pretty(k.word_equation) + '\n' +\
+        node_str = print_word_equation_list_pretty(k.word_equations) + '\n' +\
                    print_reg_constraints_simple(k)
         dot.node(node_str, node_str)
         for r in tree.node_relations[k]:
-            next_node_str = print_word_equation_pretty(r.source.word_equation) + '\n' +\
+            next_node_str = print_word_equation_list_pretty(r.source.word_equations) + '\n' +\
                             print_reg_constraints_simple(r.source)
             dot.edge(node_str, next_node_str, print_transform_rewrite_pretty(r))
     print(dot.source)

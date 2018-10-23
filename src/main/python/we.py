@@ -128,6 +128,9 @@ class WordEquation:
     def variables(self) -> Set[StrVariable]:
         return {e for e in self.lhs + self.rhs if isinstance(e, StrVariable)}
 
+    def var_occurrence(self, elem: StrVariable):
+        return sum([1 for e in self.lhs + self.rhs if e == elem])
+
     def negate(self) -> 'WordEquation':
         return self.__class__(self.lhs, self.rhs, not self.negation)
 

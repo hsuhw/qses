@@ -1,3 +1,4 @@
+from re import compile
 from enum import Enum, unique, auto
 from functools import reduce
 from typing import Dict, List, Union, Optional
@@ -27,6 +28,12 @@ class Connective(Enum):
 YetTyped = str
 Part = Union[StrExpression, IntExpression, RegExpression, YetTyped]
 Literal = Union[WordEquation, LengthConstraint, RegularConstraint]
+internal_str_var_name = compile(f'{INTERNAL_VAR_PREFIX}{ValueType.string.name}[0-9]+_(.*)')
+
+
+def internal_str_var_origin_name(var_name: str) -> Optional[str]:
+    result = internal_str_var_name.match(var_name)
+    return result.group(1) if result else None
 
 
 class Term:

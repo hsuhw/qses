@@ -156,6 +156,13 @@ class Problem:
         else:
             return True
 
+    def num_occurrence(self, e: Elem) -> int:
+        return sum([w.num_occurrence(e) for w in self.we_list])
+
+    def is_quadratic(self):
+        return True in \
+               {self.num_occurrence(v) <= 2 for v in {e for w in self.we_list for e in w.lhs + w.rhs if e[1] == 0}}
+
     def put_elem(self, e: Elem):
         vacancy = [w for w in self.we_list if not w.is_full()]
         if len(vacancy) > 0:
@@ -163,14 +170,19 @@ class Problem:
         else:
             return False
 
+    def generate_quadratic(self):
+        while not self.is_full():
+            elem = gen_elem_random()
+            if elem[1] == 0 and self.is_elem_quadratic_ok(elem):  # if variable(elem[1]== 0), check quadratic before add
+                self.put_elem(elem)
+            else:  # char or not set quadratic
+                self.put_elem(elem)
+        return self
+
     def generate(self):
         while not self.is_full():
             elem = gen_elem_random()
-            if elem[1] == 0:  # variable
-                if self.is_elem_quadratic_ok(elem):
-                    self.put_elem(elem)
-            else:  # char
-                self.put_elem(elem)
+            self.put_elem(elem)
         return self
 
     def reset(self):  # same as __init__
@@ -208,14 +220,17 @@ def main(argv):
                             dest="prefix", default="ttt_")
     arg_parser.add_argument("-n", "--num", help="Number of problems to be generated, default is 100",
                             dest="num", default="100", type=int)
+    arg_parser.add_argument("-q", "--quadratic", help="To generate quadratic problems, default is on",
+                            dest="quadratic", default="on")
     args = arg_parser.parse_args()
 
     print('Generating problems....')
-    print(f'    dir   : {args.path}')
-    print(f'    prefix: {args.prefix}')
-    print(f'    num   : {args.num}')
+    print(f'    dir      : {args.path}')
+    print(f'    prefix   : {args.prefix}')
+    print(f'    num      : {args.num}')
+    print(f'    quadratic: {args.quadratic}')
 
-    # short test
+    # # short test
     # p = Problem().generate()
     # print(p)
     # print(p.export_smt())
@@ -223,8 +238,15 @@ def main(argv):
 
     # Proceed problem generation
     problem_set = set()
-    while len(problem_set) < args.num:
-        problem_set.add(Problem().generate())
+    quadratic_flag = args.quadratic == 'on'
+    if quadratic_flag:  # generate set of quadratic problems
+        while len(problem_set) < args.num:
+            problem_set.add(Problem().generate_quadratic())
+    else:  # generate set of non-quadratic problems (at least one variable is non-quadratic)
+        while len(problem_set) < args.num:
+            prob = Problem().generate()
+            if not prob.is_quadratic():
+                problem_set.add(prob)
     if not os.path.exists(args.path):
         os.makedirs(args.path)
     os.chdir(args.path)
