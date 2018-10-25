@@ -52,12 +52,16 @@ def main(argv):
     arg_parser.add_argument("filename", help="filename to check")
     arg_parser.add_argument("-s", "--strategy", help="Transform strategy, default is first",
                             dest="strategy", default="")
+    arg_parser.add_argument("-q", "--quadratic", help="Quadratic problem, default is \'off\'",
+                            dest="quadratic", default="off")
     args = arg_parser.parse_args()
     # print(args.filename)
     # print(args.strategy)
     problem = parse_problem(args.filename)
     assert problem
     solver = BasicSolver(problem)
+    if args.quadratic != 'off':
+        solver.on_the_fly_quadratic = True
     if args.strategy == 'full':
         solver.strategy = Strategy.full
     elif args.strategy == 'first':
@@ -70,6 +74,8 @@ def main(argv):
         solver.strategy = Strategy.one_elem_first
     elif args.strategy == 'var_char_first':
         solver.strategy = Strategy.var_char_first
+    elif args.strategy == 'var_var_first':
+        solver.strategy = Strategy.var_var_first
     elif args.strategy == 'empty_vars_first':
         solver.strategy = Strategy.empty_vars_first
     elif args.strategy == 'customized':

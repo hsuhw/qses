@@ -33,6 +33,8 @@ internal_str_var_name = compile(f'{INTERNAL_VAR_PREFIX}{ValueType.string.name}[0
 
 def internal_str_var_origin_name(var_name: str) -> Optional[str]:
     result = internal_str_var_name.match(var_name)
+    print(var_name)
+    print(result)
     return result.group(1) if result else None
 
 
@@ -83,19 +85,27 @@ class Problem:
         self.reg_constraints: Dict[str, List[RegularConstraint]] = {}
         self.len_constraints: List[LengthConstraint] = []
 
-    def declare_variable(self, name: str, typ: ValueType):
+    def declare_variable(self, name: str, typ: ValueType, mute: bool = False):
         if name in self.variables:
-            raise MultiDeclarationError(f'variable: {name}')
+            if mute:  # on-the-fly quadratic, continue
+                return
+            else:
+                raise MultiDeclarationError(f'variable: {name}')
         self.variables[name] = typ
         if typ is ValueType.string:
             length_var_name = StrVariable(name).length().value
             self.declare_variable(length_var_name, ValueType.int)
 
-    def new_variable(self, typ: ValueType, note: str = None) -> str:
+    def new_variable(self, typ: ValueType, note: str = None, count: int = None) -> str:  # returns new variable name
         n = f'_{note}' if note else ''
-        name = f'{INTERNAL_VAR_PREFIX}{typ.name}{self.internal_var_count}{n}'
-        self.declare_variable(name, typ)
-        self.internal_var_count += 1
+        num = count if count else self.internal_var_count
+        name = f'{INTERNAL_VAR_PREFIX}{typ.name}{num}{n}'
+
+        # if specified rename count (for on-the-fly quadratic), set mute to not to raise exception.
+        self.declare_variable(name, typ, mute=True if count else False)
+        # if specified rename count (for on-the-fly quadratic), do not increase internal count
+        if not count:
+            self.internal_var_count += 1
         return name
 
     def ensure_variable_known(self, var: str, typ: ValueType):

@@ -21,16 +21,17 @@ from argparse import ArgumentParser
 
 
 # global settings (ignore 'full', 'customized')
-strategy_options = ['first', 'shortest', 'shortest_side', 'one_elem_first', 'var_char_first', 'empty_vars_first']
+# strategy_options = ['first', 'shortest', 'shortest_side', 'one_elem_first', 'var_char_first', 'empty_vars_first']
+strategy_options = ['var_var_first']
 RET_FORMAT = Tuple[str, str, str, str, str]
 STRATEGY_COMP_FORMAT = List[str]
 _column_width = 16
 
 
-def run_qses(filename: str, strategy: str = '') -> str:
+def run_qses(filename: str, strategy: str = '', quadratic: str = 'off') -> str:
     try:
-        output = str(check_output([f'{_base_dir}/qses_we_check', f'-s={strategy}', filename], stderr=STDOUT,
-                                  timeout=120))
+        output = str(check_output([f'{_base_dir}/qses_we_check', f'-s={strategy}', f'-q={quadratic}', filename],
+                                  stderr=STDOUT, timeout=120))
     except CalledProcessError as err:
         output = str(err.output)
     except TimeoutExpired:
@@ -44,22 +45,21 @@ def run_qses(filename: str, strategy: str = '') -> str:
         return 'unknown'
 
 
-def run_qses_strategy_comp(filename: str) -> List[STRATEGY_COMP_FORMAT]:
+def run_qses_strategy_comp(filename: str, quadratic: str = 'off') -> List[STRATEGY_COMP_FORMAT]:
     ret: List[STRATEGY_COMP_FORMAT] = list()
     for strategy in strategy_options:
         try:
-            output = check_output([f'{_base_dir}/qses_we_check', f'-s={strategy}', filename], stderr=STDOUT,
-                                  timeout=120)
+            output = check_output([f'{_base_dir}/qses_we_check', f'-s={strategy}', f'-q={quadratic}', filename],
+                                  stderr=STDOUT, timeout=120)
         except CalledProcessError as err:
             output = err.output
         except TimeoutExpired:
             output = 'timeout'
-        # ret.append(f'strategy: {strategy}\n' + output.decode("utf-8"))
+
         if output == 'timeout':
             ret.append([strategy, '0', '0', output])
         else:
             ret.append(output.decode("utf-8").rstrip().split(','))
-            # ret.append(tuple(output.decode("utf-8").rstrip().split(',')))
     return ret
 
 
@@ -145,14 +145,14 @@ def write_result_strategy(benchmark_path: str, prob_size: int, result: List[Tupl
             fp.write('    ' + '\n    '.join([', '.join([s.rjust(_column_width) for s in e]) for e in res[1]]) + '\n')
 
 
-def double_check(benchmark_path: str, names: List[str], strategy: str):
+def double_check(benchmark_path: str, names: List[str], strategy: str, quadratic: str = 'off'):
     qses_wrong: List[RET_FORMAT] = list()
     qses_timeout: List[RET_FORMAT] = list()
     inconsistent: List[RET_FORMAT] = list()
     counter = 0
     for name in names:
         filename = f'{benchmark_path}/{name}'
-        ret_qses = run_qses(filename, strategy)
+        ret_qses = run_qses(filename, strategy, quadratic)
         ret_cvc4 = run_cvc4(filename)
         ret_z3 = run_z3(filename)
         ret_z3str3 = run_z3str3(filename)
@@ -222,6 +222,9 @@ def main(argv):
     arg_parser.add_argument("-s", "--strategy",
                             help="Specify strategy for double check, default is \'\'. ",
                             dest="strategy", default="")
+    arg_parser.add_argument("-q", "--quadratic",
+                            help="Quadratic string problems, default is \'off\' ",
+                            dest="quadratic", default="off")
     args = arg_parser.parse_args()
 
     benchmark_path = os.path.normpath(args.benchmark_path)
@@ -239,7 +242,8 @@ def main(argv):
             print(f'task: double check with default qses strategy')
         else:
             print(f'task: double check with qses strategy {args.strategy}')
-        double_check(benchmark_path, names, args.strategy)
+        print(f'quadratic problem set: {args.quadratic}')
+        double_check(benchmark_path, names, args.strategy, args.quadratic)
 
 
 if __name__ == '__main__':

@@ -21,6 +21,8 @@ class Rewrite(Enum):
     rvar_longer_char = auto()
     lvar_longer_var = auto()
     rvar_longer_var = auto()
+    allvar_be_empty = auto()
+    on_the_fly_quadratic = auto()
 
 
 class Strategy(Enum):
@@ -30,6 +32,7 @@ class Strategy(Enum):
     shortest_side = auto()
     one_elem_first = auto()
     var_char_first = auto()
+    var_var_first = auto()
     empty_vars_first = auto()
     customized = auto()
 
@@ -44,7 +47,8 @@ fsa_classification = FsaClassification()  # Object storing FSA classifications
 class SolveTreeNode:
     success_we: WordEquation = WordEquation([], [])
 
-    def __init__(self, word_equations: List[WordEquation], reg_constraints: Optional[Dict[str, FSA]] = None):
+    def __init__(self, word_equations: List[WordEquation], reg_constraints: Optional[Dict[str, FSA]] = None,
+                 var_rename_count: Optional[Dict[str, int]] = None):
         self.word_equations = word_equations
         self.reg_constraints: [RegConstraints] = reg_constraints
         if reg_constraints:  # there are regular constraint
@@ -54,6 +58,10 @@ class SolveTreeNode:
                 self.regc_classes[name] = fsa_classification.get_classification(reg_constraints[name])
         else:
             self.regc_classes: [RegConstraintClasses] = None
+        if var_rename_count:
+            self.var_rename_count = {v: var_rename_count[v] for v in var_rename_count}  # make a copy
+        else:
+            self.var_rename_count: Dict[str, int] = {v.value: 0 for v in self.variables()}  # for on-the-fly quadratic
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -91,8 +99,11 @@ class SolveTreeNode:
     def variables(self) -> Set[StrVariable]:
         return reduce(lambda x, y: x | y, [e.variables() for e in self.word_equations])
 
-    def var_occurrence(self, elem: StrVariable):
-        return sum([we.var_occurrence(elem) for we in self.word_equations])
+    def var_occurrence(self, elem: Optional[StrVariable] = None):
+        if elem:  # if elem is specified, count occurrence for elem
+            return sum([we.var_occurrence(elem) for we in self.word_equations])
+        else:  # if elem is not specified, count occurrence for all string variables
+            return sum([we.var_occurrence() for we in self.word_equations])
 
     def is_success_node(self):
         # return reduce(lambda x, y: x and y, map(lambda x: x == self.success_we, self.word_equations))
@@ -120,6 +131,14 @@ class SolveTreeNode:
     def pick_var_char_word_equation(self) -> Optional[WordEquation]:
         candidates = [we for we in self.word_equations if we != self.success_we and not we.is_simply_unequal()]
         group1 = [we for we in candidates if we.is_char_var_headed() or we.is_var_char_headed() or we.has_emptiness()]
+        if len(group1) > 0:
+            return group1[0]
+        else:
+            return None
+
+    def pick_var_var_word_equation(self) -> Optional[WordEquation]:
+        candidates = [we for we in self.word_equations if we != self.success_we and not we.is_simply_unequal()]
+        group1 = [we for we in candidates if we.is_both_var_headed()]
         if len(group1) > 0:
             return group1[0]
         else:
@@ -228,8 +247,9 @@ class InvalidProblemError(Exception):
     pass
 
 
-def node_with_new_reg_constraints(wes: List[WordEquation], regc_old: RegConstraints, fsa: [FSA],
+def node_with_new_reg_constraints(wes: List[WordEquation], node: SolveTreeNode, fsa: [FSA],
                                   var_name: str, process_type: str = 'copy') -> [SolveTreeNode]:
+    regc_old = node.reg_constraints
     regc_new: RegConstraints = dict()
     if process_type == 'check':
         for r in regc_old:
@@ -251,7 +271,7 @@ def node_with_new_reg_constraints(wes: List[WordEquation], regc_old: RegConstrai
         for r in regc_old:
             regc_new[r] = regc_old[r]
         regc_new[var_name] = fsa  # update after for-loop, in case {var_name} has no regular constraint yet
-    return SolveTreeNode(wes, regc_new)
+    return SolveTreeNode(wes, regc_new, node.var_rename_count)
 
 
 class BasicSolver:
@@ -301,21 +321,29 @@ class BasicSolver:
         case3_wes = [e.replace(lh, rh).trim_prefix() for e in node.word_equations]
         self.process_reg_constraints(node, case3_wes, Rewrite.lvar_be_rvar, hh)
 
-        if self.on_the_fly_quadratic:
-            if node.var_occurrence(lh) > 2:
-                print(f'perform incremential quadratic: {lh}')
-                turn_one_var_to_quadratic(lh, node, self.problem)
-                print(print_solve_tree_node_pretty(node))
-        case4_wes = [e.replace_with(lh, [rh, lh]).trim_prefix() for e in node.word_equations]
-        self.process_reg_constraints(node, case4_wes, Rewrite.lvar_longer_var, hh)
+        if self.on_the_fly_quadratic and node.var_occurrence(lh) > 2:
+            print(f'perform on-the-fly quadratic: {lh}')
+            new_node = turn_one_var_to_quadratic(lh, node, self.problem)
+            print(print_solve_tree_node_pretty(node))
+            self.resolve.add_node(node, new_node, Rewrite.on_the_fly_quadratic, (lh, None))  # add new_node directly
+            # proceed to transform case Rewrite.lvar_longer_var
+            case4_wes = [e.replace_with(lh, [rh, lh]).trim_prefix() for e in new_node.word_equations]
+            self.process_reg_constraints(new_node, case4_wes, Rewrite.lvar_longer_var, hh)
+        else:
+            case4_wes = [e.replace_with(lh, [rh, lh]).trim_prefix() for e in node.word_equations]
+            self.process_reg_constraints(node, case4_wes, Rewrite.lvar_longer_var, hh)
 
-        if self.on_the_fly_quadratic:
-            if node.var_occurrence(rh) > 2:
-                print(f'perform incremential quadratic: {rh}')
-                turn_one_var_to_quadratic(rh, node, self.problem)
-                print(print_solve_tree_node_pretty(node))
-        case5_wes = [e.replace_with(rh, [lh, rh]).trim_prefix() for e in node.word_equations]
-        self.process_reg_constraints(node, case5_wes, Rewrite.rvar_longer_var, hh)
+        if self.on_the_fly_quadratic and node.var_occurrence(rh) > 2:
+            print(f'perform on-the-fly quadratic: {rh}')
+            new_node = turn_one_var_to_quadratic(rh, node, self.problem)
+            print(print_solve_tree_node_pretty(new_node))
+            self.resolve.add_node(node, new_node, Rewrite.on_the_fly_quadratic, (None, rh))  # add new_node directly
+            # proceed to transform case Rewrite.rvar_longer_var
+            case5_wes = [e.replace_with(rh, [lh, rh]).trim_prefix() for e in node.word_equations]
+            self.process_reg_constraints(node, case5_wes, Rewrite.rvar_longer_var, hh)
+        else:
+            case5_wes = [e.replace_with(rh, [lh, rh]).trim_prefix() for e in node.word_equations]
+            self.process_reg_constraints(node, case5_wes, Rewrite.rvar_longer_var, hh)
 
     def transform_char_var_case(self, node: SolveTreeNode, we: WordEquation):
         lh, rh = hh = we.peek()
@@ -354,7 +382,7 @@ class BasicSolver:
             wes = [e.remove_element_from_all(vars_tuple[0]).trim_prefix() for e in node.word_equations]
             for i in range(1, len(vars_tuple)):
                 wes = [e.remove_element_from_all(vars_tuple[i]).trim_prefix() for e in wes]
-            self.process_reg_constraints(node, wes, Rewrite.lvar_be_empty, (None, None))
+            self.process_reg_constraints(node, wes, Rewrite.allvar_be_empty, (None, None))
         if self.debug:
             print('transform powerset of all variables empty at first.')
             print(f'    number of veriables: {len(variables)}')
@@ -368,7 +396,7 @@ class BasicSolver:
     def process_reg_constraints(self, node: SolveTreeNode, wes: List[WordEquation], rewrite: Rewrite,
                                 record: TransformRecord):
         if not node.reg_constraints:  # if no regular constraints at first, don't process regular constraints
-            new_node = SolveTreeNode(wes)
+            new_node = SolveTreeNode(wes, var_rename_count=node.var_rename_count)
             # print(f'process_reg_constratins: new_node: {print_solve_tree_node_pretty(new_node)}')
             self.update_solve_tree(node, new_node, rewrite, record)
             return  # case end: no regular constraints
@@ -379,34 +407,34 @@ class BasicSolver:
             # check inclusion of empty fsa for {lvar}
             fsa_tmp = self.empty_str_fsa
             var_name = record[0].value
-            new_node = node_with_new_reg_constraints(wes, regc, fsa_tmp, var_name, 'check')
+            new_node = node_with_new_reg_constraints(wes, node, fsa_tmp, var_name, 'check')
             self.update_solve_tree(node, new_node, rewrite, record)
         elif rewrite == Rewrite.rvar_be_empty:
             # check inclusion of empty fsa for {rvar}
             fsa_tmp = self.empty_str_fsa
             var_name = record[1].value
-            new_node = node_with_new_reg_constraints(wes, regc, fsa_tmp, var_name, 'check')
+            new_node = node_with_new_reg_constraints(wes, node, fsa_tmp, var_name, 'check')
             self.update_solve_tree(node, new_node, rewrite, record)
         elif rewrite == Rewrite.lvar_be_char:
             # check inclusion of a fsa accepting only one char for {lvar}
             var_name, ch = record[0].value, record[1].value
             fsa_tmp = from_str(ch, self.alphabet)
-            new_node = node_with_new_reg_constraints(wes, regc, fsa_tmp, var_name, 'check')
+            new_node = node_with_new_reg_constraints(wes, node, fsa_tmp, var_name, 'check')
             self.update_solve_tree(node, new_node, rewrite, record)
         elif rewrite == Rewrite.rvar_be_char:
             # check inclusion of a fsa accepting only one char for {rvar}
             var_name, ch = record[1].value, record[0].value
             fsa_tmp = from_str(ch, self.alphabet)
-            new_node = node_with_new_reg_constraints(wes, regc, fsa_tmp, var_name, 'check')
+            new_node = node_with_new_reg_constraints(wes, node, fsa_tmp, var_name, 'check')
             self.update_solve_tree(node, new_node, rewrite, record)
         elif rewrite == Rewrite.lvar_be_rvar:
             # check inclusion of a fsa accepting {rvar} for {lvar}
             var_l, var_r = record[0].value, record[1].value
             if var_r in regc:  # if {rvar} has regular constraint, check inclusion
                 fsa_tmp = regc[var_r]
-                new_node = node_with_new_reg_constraints(wes, regc, fsa_tmp, var_l, 'check')
+                new_node = node_with_new_reg_constraints(wes, node, fsa_tmp, var_l, 'check')
             else:  # if {rvar} has no regular constraint, just copy
-                new_node = node_with_new_reg_constraints(wes, regc, None, var_l, 'copy')
+                new_node = node_with_new_reg_constraints(wes, node, None, var_l, 'copy')
             self.update_solve_tree(node, new_node, rewrite, record)
         elif rewrite == Rewrite.lvar_longer_char:
             # get a new fsa by removing the first char {rvar} from the fsa of {lvar}
@@ -414,7 +442,7 @@ class BasicSolver:
             if var_name in regc:
                 fsa_tmp = remove_first_char(regc[var_name], ch)
                 if fsa_tmp:
-                    new_node = node_with_new_reg_constraints(wes, regc, fsa_tmp, var_name, 'update')
+                    new_node = node_with_new_reg_constraints(wes, node, fsa_tmp, var_name, 'update')
                 else:
                     return  # transform failed (constraint violation)
             else:
@@ -426,11 +454,11 @@ class BasicSolver:
             if var_name in regc:
                 fsa_tmp = remove_first_char(regc[var_name], ch)
                 if fsa_tmp:
-                    new_node = node_with_new_reg_constraints(wes, regc, fsa_tmp, var_name, 'update')
+                    new_node = node_with_new_reg_constraints(wes, node, fsa_tmp, var_name, 'update')
                 else:
                     return  # transform failed (constraint violation)
             else:
-                new_node = node_with_new_reg_constraints(wes, regc, None, var_name, 'copy')
+                new_node = node_with_new_reg_constraints(wes, node, None, var_name, 'copy')
             self.update_solve_tree(node, new_node, rewrite, record)
         elif rewrite == Rewrite.lvar_longer_var:
             # get a set of pair of fsa for ({rvar},{lvar}) by splitting the constraint of {lvar}
@@ -439,12 +467,12 @@ class BasicSolver:
             if var_l in regc:  # {var_l} has regular constraint, need to do split
                 fsa_paris = split_by_states(regc[var_l])
                 for fsa_r, fsa_l in fsa_paris:
-                    new_node = node_with_new_reg_constraints(wes, regc, fsa_l, var_l, 'check')
+                    new_node = node_with_new_reg_constraints(wes, node, fsa_l, var_l, 'check')
                     if new_node:
                         # this function call will update fsa of {var_r} if it has no regular constraint yet
-                        new_node = node_with_new_reg_constraints(wes, new_node.reg_constraints, fsa_r, var_r, 'check')
+                        new_node = node_with_new_reg_constraints(wes, new_node, fsa_r, var_r, 'check')
             else:  # no need to update/check regular constraints
-                new_node = node_with_new_reg_constraints(wes, regc, None, var_l, 'copy')
+                new_node = node_with_new_reg_constraints(wes, node, None, var_l, 'copy')
             self.update_solve_tree(node, new_node, rewrite, record)
         elif rewrite == Rewrite.rvar_longer_var:
             # get a set of pair of fsa for ({rvar},{lvar}) by splitting the constraint of {rvar}
@@ -453,12 +481,12 @@ class BasicSolver:
             if var_r in regc:  # {var_r} has regular constraint, need to do split
                 fsa_paris = split_by_states(regc[var_r])
                 for fsa_l, fsa_r in fsa_paris:
-                    new_node = node_with_new_reg_constraints(wes, regc, fsa_r, var_r, 'check')
+                    new_node = node_with_new_reg_constraints(wes, node, fsa_r, var_r, 'check')
                     if new_node:
                         # this function call will update fsa of {var_r} if it has no regular constraint yet
-                        new_node = node_with_new_reg_constraints(wes, new_node.reg_constraints, fsa_l, var_l, 'check')
+                        new_node = node_with_new_reg_constraints(wes, new_node, fsa_l, var_l, 'check')
             else:  # no need to update/check regular constraints
-                new_node = node_with_new_reg_constraints(wes, regc, None, var_r, 'copy')
+                new_node = node_with_new_reg_constraints(wes, node, None, var_r, 'copy')
             self.update_solve_tree(node, new_node, rewrite, record)
 
     def update_solve_tree(self, node: SolveTreeNode, new_node: Optional[SolveTreeNode], rewrite: Rewrite,
@@ -473,10 +501,15 @@ class BasicSolver:
             print(f'rewrite: {rewrite}')
             print(f'head: {record}')
         if new_node:
-            if len(node) < len(new_node):  # len returns the total length of all word equations of a node
+            # if len(node) < len(new_node):  # len returns the total length of all word equations of a node
+            #     print("Warning: word equation is not quadratic")
+            #     print(f'old we: length = {len(node)}\n{node.word_equations}')
+            #     print(f'new we: length = {len(new_node)}\n{new_node.word_equations}')
+            #     exit(1)
+            if node.var_occurrence() < new_node.var_occurrence():  # compare the total numbers of occurrences of string variables
                 print("Warning: word equation is not quadratic")
-                print(f'old we: length = {len(node)}\n{node.word_equations}')
-                print(f'new we: length = {len(new_node)}\n{new_node.word_equations}')
+                print(f'old we: string variable occurrences = {node.var_occurrence()}\n{node.word_equations}')
+                print(f'new we: string variable occurrences = {new_node.var_occurrence()}\n{new_node.word_equations}')
                 exit(1)
             if self.resolve.add_node(node, new_node, rewrite, record):
                 self.pending_checks.append(new_node)
@@ -532,6 +565,18 @@ class BasicSolver:
 
     def solve_var_char_first(self, node: SolveTreeNode):
         we = node.pick_var_char_word_equation()
+        if not we:
+            we = node.pick_first_word_equation()
+        if not we:  # this shall not happen (supposed to be filtered)
+            assert False
+        self.process_node(node, we)
+        if self.debug:
+            print(f'number of pending check nodes: {len(self.pending_checks)}')
+            print(f'current number of nodes: {self.resolve.num_nodes()}')
+            # input('pause... press enter to continue')
+
+    def solve_var_var_first(self, node: SolveTreeNode):
+        we = node.pick_var_var_word_equation()
         if not we:
             we = node.pick_first_word_equation()
         if not we:  # this shall not happen (supposed to be filtered)
@@ -618,6 +663,8 @@ class BasicSolver:
                 self.solve_one_elem_first(node)
             elif self.strategy == Strategy.var_char_first:
                 self.solve_var_char_first(node)
+            elif self.strategy == Strategy.var_var_first:
+                self.solve_var_var_first(node)
             elif self.strategy == Strategy.empty_vars_first:
                 self.transform_all_vars_empty(node)  # only do this once on root node
                 self.pending_checks.append(node)  # root node should be processed with normal transform rules
@@ -660,39 +707,50 @@ def turn_to_linear_wes(prob: Problem, wes: Optional[List[WordEquation]] = None):
         _turn_to_linear(we.rhs)
 
 
-# rename a string variable if it occurs more than twice in a node
-def turn_one_var_to_quadratic(var: StrVariable, node: SolveTreeNode, prob: Problem):
+# rename a string variable if it occurs more than twice in a node, then return the new node
+def turn_one_var_to_quadratic(var: StrVariable, node: SolveTreeNode, prob: Problem) -> SolveTreeNode:
     if node.var_occurrence(var) <= 2:  # do nothing if no more than two occurrences
-        return
+        return node
 
     var_occurred_count: int = 0
     var_new_name: str = ''
     new_var: Optional[StrVariable] = None
+    ret_node = SolveTreeNode(node.word_equations, node.reg_constraints, node.var_rename_count)
+    print(node.var_rename_count)
+    print(var)
 
     def _replace(expr):
-        nonlocal var_occurred_count, var_new_name, new_var
+        nonlocal var_occurred_count, var_new_name, new_var, ret_node
         for index, e in enumerate(expr):
             if e == var:
                 var_occurred_count += 1
                 if var_occurred_count > 2:
                     # first time of replace, generate new var name and add corresponding length and regular constraints
                     if var_new_name == '' and not new_var:
+                        print(f'var.value: {var.value}')
                         var_original_name = internal_str_var_origin_name(var.value)
-                        if var_original_name:
-                            var_new_name = prob.new_variable(ValueType.string, var_original_name)
-                        else:
-                            var_new_name = prob.new_variable(ValueType.string, var.value)
+                        print(f'var_original_name: {var_original_name}')
+                        var_name = var_original_name if var_original_name else var.value
+                        node.var_rename_count[var_name] += 1
+                        print(f'var_name: {var_name}')
+                        var_new_name = prob.new_variable(ValueType.string, var_name, node.var_rename_count[var_name])
+                        print(f'var_new_name: {var_new_name}')
+
                         new_var = StrVariable(var_new_name)
                         lc = LengthConstraint([var.length()], [new_var.length()])
-                        prob.add_length_constraint(lc)
-                        reg_cons = prob.reg_constraints
-                        if var.value in reg_cons:
-                            reg_cons[new_var.value] = reg_cons[var.value]
+                        if lc not in prob.len_constraints:
+                            prob.add_length_constraint(lc)
+                        if node.reg_constraints:
+                            reg_cons = ret_node.reg_constraints
+                            if var.value in reg_cons:
+                                reg_cons[new_var.value] = reg_cons[var.value]
                     expr[index] = new_var
 
-    for we in node.word_equations:
+    for we in ret_node.word_equations:
         _replace(we.lhs)
         _replace(we.rhs)
+
+    return ret_node
 
 
 def turn_to_quadratic_wes(prob: Problem, wes: Optional[List[WordEquation]] = None):

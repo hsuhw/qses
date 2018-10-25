@@ -163,6 +163,9 @@ class LengthConstraint:
         rhs = ' '.join(map(str, self.rhs))
         return f'ic[{lhs} {self.relation.value} {rhs}]'
 
+    def __eq__(self, other):
+        return isinstance(other, LengthConstraint) and str(self) == str(other)
+
     def variables(self) -> Set[IntVariable]:
         return {e for e in self.lhs + self.rhs if isinstance(e, IntVariable)}
 

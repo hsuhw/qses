@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-This script parses the resuts reported by `check_minibenchmark`, then copies selected smt problems to another directory
+This script parses the results reported by `check_minibenchmark`, then copies selected smt problems to another directory
 for further examination.
 
 1. For double check results, it copies smt files listed in qses wrong to a new directory named with postfix
@@ -10,9 +10,11 @@ for further examination.
 """
 import os
 from argparse import ArgumentParser
+import numpy
 from pypeg2 import *
 
 
+_column_width = 6
 Number = re.compile(r"\d+")
 RestLines = re.compile(r"^(.+)(?:\n|\r\n?)((?:(?:\n|\r\n?).+)+)", re.MULTILINE)
 
@@ -32,7 +34,7 @@ class DoubleCheckHeadline(object):
 
 
 class SmtFilename(str):
-    grammar = re.compile(r".*\.smt2")
+    grammar = re.compile(r"^.*\.smt2")
 
 
 class DoubleCheckResult(List):
@@ -43,9 +45,13 @@ class DoubleCheckResultBlock(List):
     grammar = attr('headline', DoubleCheckHeadline), maybe_some(DoubleCheckResult)
 
 
+class DoubleCheckReportHead(List):
+    grammar = 'path of problem set: ', name(), omit(restline), omit(restline)
+
+
 class DoubleCheckReport(List):
-    grammar = 'path of problem set: ', name(), omit(restline), omit(restline), DoubleCheckResultBlock, \
-              omit(RestLines)
+    grammar = attr('headline', DoubleCheckReportHead), DoubleCheckResultBlock, \
+              omit(DoubleCheckResultBlock), omit(DoubleCheckResultBlock)
 
 
 class StrategyResult(Namespace):
@@ -56,8 +62,12 @@ class StrategyComparisonResult(List):
     grammar = attr('filename', SmtFilename), omit(restline), some(StrategyResult)
 
 
+class StrategyComparisonReportHead(List):
+    grammar = 'path of problem set: ', name(), omit(restline)
+
+
 class StrategyComparisonReport(List):
-    grammar = 'path of problem set: ', name(), omit(restline), maybe_some(StrategyComparisonResult)
+    grammar = attr('headline', StrategyComparisonReportHead), maybe_some(StrategyComparisonResult)
 
 
 def main(argv):
@@ -68,36 +78,77 @@ def main(argv):
                                 epilog=None)
     arg_parser.add_argument("filename", help="result filename")
     arg_parser.add_argument("-t", "--type",
-                            help="Type of checking results, \'d\' for double check, \'s\' for strategy comparison",
-                            dest="type", default="d")
+                            help="Type of checking results, \'d\' (default) for double check, "
+                                 "\'s\' for strategy comparison", dest="type", default="s")
+    arg_parser.add_argument("-a", "--analysis",
+                            help="Analyze result report (strategy comparison only), default is \'off\'. if set \'on\', "
+                                 "file copy is disabled.", dest="analysis", default="off")
     args = arg_parser.parse_args()
 
     print(f'reading result file {args.filename}')
 
-    with open(args.filename, 'r') as fp:
-        lines = fp.readlines()
-    report = ''.join(lines)
+    with open(args.filename, 'r', encoding="utf-8") as fp:
+        report = fp.read()
+    report = report.split(os.linesep + os.linesep)
     if args.type == 'd':
         print('type of results: double check')
-        ast = parse(report, DoubleCheckReport)
-        print(f'parsing double check results of {ast.name}')
-        print(f'looking for files in {ast[0].headline.title}')
-        print(f'number of files: {ast[0].headline.num}')
-        tgt_dir = f'{ast.name}_double_check'
-        filenames = [e[0] for e in ast[0]]
+        report_head = parse(report[0], DoubleCheckReportHead)
+        # ast = parse(report, DoubleCheckReport)
+        print(f'parsing double check results of {report_head.name}')
+        res = parse(report[1], DoubleCheckResultBlock)
+        print(f'looking for files in {res.headline.title}')
+        print(f'number of files: {res.headline.num}')
+        tgt_dir = f'{report_head.name}_double_check'
+        filenames = [e[0] for e in res]
     elif args.type == 's':
         print('type of results: strategy comparison')
-        ast = parse(report, StrategyComparisonReport)
-        print(f'parsing strategy comparison results of {ast.name}')
-        tgt_dir = f'{ast.name}_strategy_comparison'
-        filenames = [e.filename for e in ast]
+        report_head = parse(report[0], StrategyComparisonReportHead)
+        print(f'parsing strategy comparison results of {report_head.name}')
+        res = list()
+        for block in report[1:]:
+            res.append(parse(block, StrategyComparisonResult))
+        tgt_dir = f'{report_head.name}_strategy_comparison'
+        filenames = [e.filename for e in res]
     else:
         assert False
 
-    os.system(f'mkdir {tgt_dir}')
-    for f in filenames:
-        print(f'copying {f}')
-        os.system(f'cp {ast.name}/{f} {tgt_dir}')
+    # print(filenames)
+    # print(len(filenames))
+
+    if args.analysis == 'off':
+        os.system(f'mkdir {tgt_dir}')
+        for f in filenames:
+            print(f'copying {f}')
+            os.system(f'cp {report_head.name}/{f} {tgt_dir}')
+    elif args.analysis == 'on':
+        assert args.type == 's'  # only for strategy comparison results
+        num_strategy = len(res[0])
+        strategy_groups_sat = list()
+        strategy_groups_unsat = list()
+        for i in range(num_strategy):
+            strategy_groups_sat.append([e[i] for e in res if e[i].result == 'sat'])
+            strategy_groups_unsat.append([e[i] for e in res if e[i].result == 'unsat'])
+
+        print('Task: ANALYSIS')
+        for i in range(num_strategy):
+            strategy_name = strategy_groups_sat[i][0].name
+            sat_nodes = [e.nodes for e in strategy_groups_sat[i]]
+            sat_trans = [e.transitions for e in strategy_groups_sat[i]]
+            unsat_nodes = [e.nodes for e in strategy_groups_unsat[i]]
+            unsat_trans = [e.transitions for e in strategy_groups_unsat[i]]
+            print(f'\nstrategy: {strategy_name}')
+            print(f'    node average, median (sat)        : '
+                  f'{str(int(round(numpy.average(sat_nodes)))).rjust(_column_width)}, '
+                  f'{str(int(round(numpy.median(sat_nodes)))).rjust(_column_width)}')
+            print(f'    transition average, median (sat)  : '
+                  f'{str(int(round(numpy.average(sat_trans)))).rjust(_column_width)}, '
+                  f'{str(int(round(numpy.median(sat_trans)))).rjust(_column_width)}')
+            print(f'    node average, median (unsat)      : '
+                  f'{str(int(round(numpy.average(unsat_nodes)))).rjust(_column_width)}, '
+                  f'{str(int(round(numpy.median(unsat_nodes)))).rjust(_column_width)}')
+            print(f'    transition average, median (unsat): '
+                  f'{str(int(round(numpy.average(unsat_trans)))).rjust(_column_width)}, '
+                  f'{str(int(round(numpy.median(unsat_trans)))).rjust(_column_width)}')
 
 
 if __name__ == '__main__':
