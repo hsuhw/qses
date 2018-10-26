@@ -33,8 +33,8 @@ internal_str_var_name = compile(f'{INTERNAL_VAR_PREFIX}{ValueType.string.name}[0
 
 def internal_str_var_origin_name(var_name: str) -> Optional[str]:
     result = internal_str_var_name.match(var_name)
-    print(var_name)
-    print(result)
+    # print(var_name)
+    # print(result)
     return result.group(1) if result else None
 
 

@@ -116,7 +116,8 @@ def print_tuple(e):
 
 
 def write_result_double_check(benchmark_path: str, prob_size: int, strategy: str, qses_wrong: List[RET_FORMAT],
-                              qses_timeout: List[RET_FORMAT], inconsistent: List[RET_FORMAT]):
+                              qses_timeout: List[RET_FORMAT], inconsistent: List[RET_FORMAT], all_sat: List[RET_FORMAT],
+                              all_unsat: List[RET_FORMAT]):
     with open(f'{os.path.basename(benchmark_path)}.double_check', 'w') as fp:
         fp.write(f'path of problem set: {benchmark_path}\n')
         fp.write(f'number of processed problems:  {prob_size}\n')
@@ -134,6 +135,13 @@ def write_result_double_check(benchmark_path: str, prob_size: int, strategy: str
                  f'format: (filename, qses, cvc4, z3, z3str3) -----\n')
         for e in inconsistent:
             fp.write(f'{print_tuple(e)}\n')
+        fp.write(f'\n----- all sat results: {len(all_sat)} cases. format: (filename, qses, cvc4, z3, z3str3) -----\n')
+        for e in all_sat:
+            fp.write(f'{print_tuple(e)}\n')
+        fp.write(f'\n----- all unsat results: {len(all_unsat)} cases. '
+                 f'format: (filename, qses, cvc4, z3, z3str3) -----\n')
+        for e in all_unsat:
+            fp.write(f'{print_tuple(e)}\n')
 
 
 def write_result_strategy(benchmark_path: str, prob_size: int, result: List[Tuple[str, List[STRATEGY_COMP_FORMAT]]]):
@@ -149,6 +157,8 @@ def double_check(benchmark_path: str, names: List[str], strategy: str, quadratic
     qses_wrong: List[RET_FORMAT] = list()
     qses_timeout: List[RET_FORMAT] = list()
     inconsistent: List[RET_FORMAT] = list()
+    all_sat: List[RET_FORMAT] = list()
+    all_unsat: List[RET_FORMAT] = list()
     counter = 0
     for name in names:
         filename = f'{benchmark_path}/{name}'
@@ -168,15 +178,20 @@ def double_check(benchmark_path: str, names: List[str], strategy: str, quadratic
                 (ret_qses == 'sat' and ret_z3 == 'unsat') or (ret_qses == 'unsat' and ret_z3 == 'sat') or \
                 (ret_qses == 'sat' and ret_z3str3 == 'unsat') or (ret_qses == 'unsat' and ret_z3str3 == 'sat'):
             qses_wrong.append(ret)
+        if ret_qses == 'sat' and ret_cvc4 == 'sat' and (ret_z3 == 'sat' or ret_z3str3 == 'sat'):
+            all_sat.append(ret)
+        if ret_qses == 'unsat' and ret_cvc4 == 'unsat' and (ret_z3 == 'unsat' or ret_z3str3 == 'unsat'):
+            all_unsat.append(ret)
 
         # write when 1000 problems processed to have some results if the script terminates accidentally
-        # each write will overwrite the previous written contents
         counter += 1
         if counter % 1000 == 0:
-            write_result_double_check(benchmark_path, counter, strategy, qses_wrong, qses_timeout, inconsistent)
+            write_result_double_check(benchmark_path, counter, strategy, qses_wrong, qses_timeout, inconsistent,
+                                      all_sat, all_unsat)
 
     # write the final results
-    write_result_double_check(benchmark_path, counter, strategy, qses_wrong, qses_timeout, inconsistent)
+    write_result_double_check(benchmark_path, counter, strategy, qses_wrong, qses_timeout, inconsistent, all_sat,
+                              all_unsat)
 
 
 def is_zero_unsat(data: List[STRATEGY_COMP_FORMAT]):

@@ -50,18 +50,26 @@ def main(argv):
                                             "(ignore length constraints):",
                                 epilog=None)
     arg_parser.add_argument("filename", help="filename to check")
-    arg_parser.add_argument("-s", "--strategy", help="Transform strategy, default is first",
+    arg_parser.add_argument("-s", "--strategy", help="Transform strategy, default is first. Strategies available: "
+                                                     "full, shortest, shortest_side, one_elem_first, var_char_first, "
+                                                     "var_var_first, empty_vars_first",
                             dest="strategy", default="")
-    arg_parser.add_argument("-q", "--quadratic", help="Quadratic problem, default is \'off\'",
+    arg_parser.add_argument("-q", "--quadratic", help="Apply on-the-fly quadratic for non-quadratic problems, "
+                                                      "default is \'off\' (set \'on\' to apply)",
                             dest="quadratic", default="off")
+    arg_parser.add_argument("-d", "--debug", help="Set debug flag to print out transform details, default is \'off\' "
+                                                  "(set \'on\' to activate)",
+                            dest="debug", default="off")
     args = arg_parser.parse_args()
     # print(args.filename)
     # print(args.strategy)
     problem = parse_problem(args.filename)
     assert problem
     solver = BasicSolver(problem)
-    if args.quadratic != 'off':
+    if args.quadratic == 'on':
         solver.on_the_fly_quadratic = True
+    if args.debug == 'on':
+        solver.debug = True
     if args.strategy == 'full':
         solver.strategy = Strategy.full
     elif args.strategy == 'first':
@@ -80,6 +88,11 @@ def main(argv):
         solver.strategy = Strategy.empty_vars_first
     elif args.strategy == 'customized':
         solver.strategy = Strategy.customized
+    elif args.strategy == '':
+        pass  # default strategy (check solver.py)
+    else:
+        print(f'Specified strategy \'{args.strategy}\' not available. Run with -h to see available strategies.')
+        exit(1)
     solver.solve()
     if args.strategy != '':
         # msg = f'# of nodes: {solver.resolve.num_nodes()}, # of transitions: {solver.resolve.num_transitions()}, '
