@@ -15,15 +15,19 @@ Result output:
 import sys
 import os
 _base_dir = os.path.dirname(os.path.realpath(__file__))
-from subprocess import STDOUT, check_output, CalledProcessError, TimeoutExpired
-from typing import Tuple, List
 from argparse import ArgumentParser
-
+from typing import Tuple, List
+from subprocess import STDOUT, check_output, CalledProcessError, TimeoutExpired
 
 # global settings (ignore 'full', 'customized')
-# strategy_options = ['first', 'shortest', 'shortest_side', 'one_elem_first', 'var_char_first', 'empty_vars_first']
-strategy_options = ['var_var_first']
-RET_FORMAT = Tuple[str, str, str, str, str]
+strategy_options_full = ['full', 'first', 'shortest', 'shortest_side', 'one_elem_first', 'var_char_first',
+                         'var_var_first', 'empty_vars_first', 'customized']
+strategy_options = ['shortest_side']
+quadratic_strategy_options = ['same_first', 'same_short', 'same_short_side', 'first', 'shortest', 'shortest_side']
+# quadratic_strategy_options = [e.name for e in QuadraticStrategy]
+
+
+RET_FORMAT = List[str]
 STRATEGY_COMP_FORMAT = List[str]
 _column_width = 16
 
@@ -47,19 +51,24 @@ def run_qses(filename: str, strategy: str = '', quadratic: str = 'off') -> str:
 
 def run_qses_strategy_comp(filename: str, quadratic: str = 'off') -> List[STRATEGY_COMP_FORMAT]:
     ret: List[STRATEGY_COMP_FORMAT] = list()
+    if quadratic == 'on':
+        q_strategy_options = quadratic_strategy_options
+    else:
+        q_strategy_options = [quadratic]
     for strategy in strategy_options:
-        try:
-            output = check_output([f'{_base_dir}/qses_we_check', f'-s={strategy}', f'-q={quadratic}', filename],
-                                  stderr=STDOUT, timeout=120)
-        except CalledProcessError as err:
-            output = err.output
-        except TimeoutExpired:
-            output = 'timeout'
+        for q_strategy in q_strategy_options:
+            try:
+                output = check_output([f'{_base_dir}/qses_we_check', f'-s={strategy}', f'-q={q_strategy}', filename],
+                                      stderr=STDOUT, timeout=120)
+            except CalledProcessError as err:
+                output = err.output
+            except TimeoutExpired:
+                output = 'timeout'
 
-        if output == 'timeout':
-            ret.append([strategy, '0', '0', output])
-        else:
-            ret.append(output.decode("utf-8").rstrip().split(','))
+            if output == 'timeout':
+                ret.append([strategy, q_strategy, '0', '0', output])
+            else:
+                ret.append(output.decode("utf-8").rstrip().split(','))
     return ret
 
 
@@ -117,10 +126,11 @@ def print_tuple(e):
 
 def write_result_double_check(benchmark_path: str, prob_size: int, strategy: str, qses_wrong: List[RET_FORMAT],
                               qses_timeout: List[RET_FORMAT], inconsistent: List[RET_FORMAT], all_sat: List[RET_FORMAT],
-                              all_unsat: List[RET_FORMAT]):
+                              all_unsat: List[RET_FORMAT], quadratic: str):
     with open(f'{os.path.basename(benchmark_path)}.double_check', 'w') as fp:
         fp.write(f'path of problem set: {benchmark_path}\n')
         fp.write(f'number of processed problems:  {prob_size}\n')
+        fp.write(f'on-the-fly quadratic strategy: {quadratic}\n')
         if strategy == '':
             fp.write(f'qses strategy set: default\n')
         else:
@@ -144,12 +154,14 @@ def write_result_double_check(benchmark_path: str, prob_size: int, strategy: str
             fp.write(f'{print_tuple(e)}\n')
 
 
-def write_result_strategy(benchmark_path: str, prob_size: int, result: List[Tuple[str, List[STRATEGY_COMP_FORMAT]]]):
+def write_result_strategy(benchmark_path: str, prob_size: int, result: List[Tuple[str, List[STRATEGY_COMP_FORMAT]]],
+                          quadratic: str):
     with open(f'{os.path.basename(benchmark_path)}.strategy_comp', 'w') as fp:
         fp.write(f'path of problem set: {benchmark_path}\n')
         fp.write(f'number of processed problems:  {prob_size}\n')
+        fp.write(f'on-the-fly quadratic strategy (\'on\' compares all): {quadratic}\n')
         for res in result:
-            fp.write(f'\n{res[0]}: (strategy, # nodes, # transitions, sat/unsat?)\n')
+            fp.write(f'\n{res[0]}: (strategy, q-strategy, # nodes, # transitions, sat/unsat?)\n')
             fp.write('    ' + '\n    '.join([', '.join([s.rjust(_column_width) for s in e]) for e in res[1]]) + '\n')
 
 
@@ -187,39 +199,39 @@ def double_check(benchmark_path: str, names: List[str], strategy: str, quadratic
         counter += 1
         if counter % 1000 == 0:
             write_result_double_check(benchmark_path, counter, strategy, qses_wrong, qses_timeout, inconsistent,
-                                      all_sat, all_unsat)
+                                      all_sat, all_unsat, quadratic)
 
     # write the final results
     write_result_double_check(benchmark_path, counter, strategy, qses_wrong, qses_timeout, inconsistent, all_sat,
-                              all_unsat)
+                              all_unsat, quadratic)
 
 
 def is_zero_unsat(data: List[STRATEGY_COMP_FORMAT]):
-    return sum([1 for e in data if e[1] != '0' or e[2] != '0' and e[3] != 'unsat']) == 0
+    return sum([1 for e in data if e[2] != '0' or e[3] != '0' or e[4] != 'unsat']) == 0
 
 
-def strategy_comparison(benchmark_path: str, names: List[str]):
+def strategy_comparison(benchmark_path: str, names: List[str], quadratic: str = 'off'):
     print('comparing qses transform strategies: (' + ', '.join(strategy_options) + ')')
     results: List[Tuple[str, List[STRATEGY_COMP_FORMAT]]] = list()
     counter = 0
     for name in names:
         filename = f'{benchmark_path}/{name}'
-        ret_qses = run_qses_strategy_comp(filename)
+        ret_qses = run_qses_strategy_comp(filename, quadratic)
         print(f'\n{name} checked by qses, comparing transform strategies:')
         print('    ' +
-              ', '.join([e.rjust(_column_width) for e in ['strategy', '# nodes', '# transitions', 'sat/unsat?']]))
+              ', '.join([e.rjust(_column_width) for e in
+                         ['strategy', 'q-strategy', '# nodes', '# transitions', 'sat/unsat?']]))
         print('    ' + '\n    '.join([', '.join([s.rjust(_column_width) for s in e]) for e in ret_qses]))
         if not is_zero_unsat(ret_qses):  # filter out cases of zero node/transition and unsat
             results.append((name, ret_qses))
 
         # write when 1000 problems processed to have some results if the script terminates accidentally
-        # each write will overwrite the previous written contents
         counter += 1
         if counter % 1000 == 0:
-            write_result_strategy(benchmark_path, counter, results)
+            write_result_strategy(benchmark_path, counter, results, quadratic)
 
     # write the final results
-    write_result_strategy(benchmark_path, counter, results)
+    write_result_strategy(benchmark_path, counter, results, quadratic)
 
 
 def main(argv):
@@ -238,7 +250,10 @@ def main(argv):
                             help="Specify strategy for double check, default is \'\'. ",
                             dest="strategy", default="")
     arg_parser.add_argument("-q", "--quadratic",
-                            help="Quadratic string problems, default is \'off\' ",
+                            help="Apply on-th-fly quadratic, default is \'off\', "
+                                 "set a specific strategy or just set \'on\' to compare all strategies. "
+                                 "(Available strategies: same_first, same_short, same_short_side, "
+                                 "first, shortest, shortest_side)",
                             dest="quadratic", default="off")
     args = arg_parser.parse_args()
 
@@ -249,15 +264,22 @@ def main(argv):
     print(f'benchmark path: {benchmark_path}')
     print(f'number of problems: {prob_size}')
 
+    assert args.strategy in strategy_options_full + ['']
+    assert args.quadratic in quadratic_strategy_options + ['on', 'off']
     if qses_strategy_flag:
         print('task: qses strategy comparison')
-        strategy_comparison(benchmark_path, names)
+        if args.quadratic == 'on':
+            print('on-the-fly strategy: compare all')
+        else:
+            print(f'on-the-fly quadratic strategy: {args.quadratic}')
+        strategy_comparison(benchmark_path, names, args.quadratic)
     else:
         if args.strategy == '':
             print(f'task: double check with default qses strategy')
         else:
             print(f'task: double check with qses strategy {args.strategy}')
-        print(f'quadratic problem set: {args.quadratic}')
+        assert args.quadratic != 'on'
+        print(f'on-the-fly quadratic strategy: {args.quadratic}')
         double_check(benchmark_path, names, args.strategy, args.quadratic)
 
 

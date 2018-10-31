@@ -78,8 +78,8 @@ def main(argv):
                                 epilog=None)
     arg_parser.add_argument("filename", help="result filename")
     arg_parser.add_argument("-t", "--type",
-                            help="Type of checking results, \'d\' (default) for double check, "
-                                 "\'s\' for strategy comparison", dest="type", default="s")
+                            help="Type of checking results, \'d\' for double check, "
+                                 "\'s\' (default)  for strategy comparison", dest="type", default="s")
     arg_parser.add_argument("-a", "--analysis",
                             help="Analyze result report (strategy comparison only), default is \'off\'. if set \'on\', "
                                  "file copy is disabled.", dest="analysis", default="off")

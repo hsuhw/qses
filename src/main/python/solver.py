@@ -3,6 +3,7 @@ from functools import reduce
 from itertools import chain, combinations
 from typing import List, Tuple, Dict, Set, Optional
 
+import random
 from graphviz import Digraph
 from lenc import LengthConstraint, print_length_constraints_as_strings, internal_len_var_name
 from prob import Problem, ValueType, internal_str_var_origin_name
@@ -36,6 +37,20 @@ class Strategy(Enum):
     empty_vars_first = auto()
     customized = auto()
 
+    def __str__(self):
+        return self.name
+
+
+class QuadraticStrategy(Enum):
+    same_first = auto()
+    same_short = auto()
+    same_short_side = auto()
+    first = auto()
+    shortest = auto()
+    shortest_side = auto()
+
+    def __str__(self):
+        return self.name
 
 TransformRecord = Tuple[Optional[StrElement], Optional[StrElement]]
 RegConstraintClasses = Dict[str, int]
@@ -293,6 +308,7 @@ class BasicSolver:
         self.strategy = Strategy.first  # word equation selection strategies
         self.disable_var_empty_transform = False  # special flag
         self.on_the_fly_quadratic = False  # incrementally turning word equations to quadratic during transform
+        self.quadratic_strategy = QuadraticStrategy.same_first  # strategy for on-the-fly quadratic
         self.debug = False  # for printing debug info, False by default
 
     def transform_with_emptiness(self, node: SolveTreeNode, we: WordEquation):
@@ -322,13 +338,15 @@ class BasicSolver:
         self.process_reg_constraints(node, case3_wes, Rewrite.lvar_be_rvar, hh)
 
         if self.on_the_fly_quadratic and node.var_occurrence(lh) > 2:
-            print(f'\nperform on-the-fly quadratic: {lh} in case lvar_longer_var')
-            new_node = turn_one_var_to_quadratic(lh, we, node, self.problem)
-            print(f'old node:\n{print_solve_tree_node_pretty(node)}')
-            print(node.var_rename_count)
-            print(f'new node:\n{print_solve_tree_node_pretty(new_node)}')
-            print(new_node.var_rename_count)
-            self.resolve.add_node(node, new_node, Rewrite.on_the_fly_quadratic, (lh, None))  # add new_node directly
+            new_node, lh_new = turn_one_var_to_quadratic(lh, we, node, self.problem,
+                                                         self.quadratic_strategy, self.debug)
+            if self.debug:
+                print(f'\nperform on-the-fly quadratic: {lh} in case lvar_longer_var')
+                print(f'old node:\n{print_solve_tree_node_pretty(node)}')
+                print(f'node.var_rename_count:\n{node.var_rename_count}')
+                print(f'new node:\n{print_solve_tree_node_pretty(new_node)}')
+                print(f'new_node.var_rename_count:\n{new_node.var_rename_count}')
+            self.resolve.add_node(node, new_node, Rewrite.on_the_fly_quadratic, (lh, lh_new))  # add new_node directly
             # proceed to transform case Rewrite.lvar_longer_var
             case4_wes = [e.replace_with(lh, [rh, lh]).trim_prefix() for e in new_node.word_equations]
             self.process_reg_constraints(new_node, case4_wes, Rewrite.lvar_longer_var, hh)
@@ -337,13 +355,15 @@ class BasicSolver:
             self.process_reg_constraints(node, case4_wes, Rewrite.lvar_longer_var, hh)
 
         if self.on_the_fly_quadratic and node.var_occurrence(rh) > 2:
-            print(f'\nperform on-the-fly quadratic: {rh} in case rvar_longer_var')
-            new_node = turn_one_var_to_quadratic(rh, we, node, self.problem)
-            print(f'old node:\n{print_solve_tree_node_pretty(node)}')
-            print(node.var_rename_count)
-            print(f'new node:\n{print_solve_tree_node_pretty(new_node)}')
-            print(new_node.var_rename_count)
-            self.resolve.add_node(node, new_node, Rewrite.on_the_fly_quadratic, (None, rh))  # add new_node directly
+            new_node, rh_new = turn_one_var_to_quadratic(rh, we, node, self.problem,
+                                                         self.quadratic_strategy, self.debug)
+            if self.debug:
+                print(f'\nperform on-the-fly quadratic: {rh} in case rvar_longer_var')
+                print(f'old node:\n{print_solve_tree_node_pretty(node)}')
+                print(f'node.var_rename_count:\n{node.var_rename_count}')
+                print(f'new node:\n{print_solve_tree_node_pretty(new_node)}')
+                print(f'new_node.var_rename_count:\n{new_node.var_rename_count}')
+            self.resolve.add_node(node, new_node, Rewrite.on_the_fly_quadratic, (rh, rh_new))  # add new_node directly
             # proceed to transform case Rewrite.rvar_longer_var
             case5_wes = [e.replace_with(rh, [lh, rh]).trim_prefix() for e in new_node.word_equations]
             self.process_reg_constraints(new_node, case5_wes, Rewrite.rvar_longer_var, hh)
@@ -714,8 +734,8 @@ def turn_to_linear_wes(prob: Problem, wes: Optional[List[WordEquation]] = None):
 
 
 # rename a string variable if it occurs more than twice in a node, then return the new node
-def turn_one_var_to_quadratic(var: StrVariable, selected_we: WordEquation,
-                              node: SolveTreeNode, prob: Problem) -> SolveTreeNode:
+def turn_one_var_to_quadratic(var: StrVariable, selected_we: WordEquation, node: SolveTreeNode, prob: Problem,
+                              q_strategy: QuadraticStrategy, debug: bool = False) -> Tuple[SolveTreeNode, str]:
     assert node.var_occurrence(var) > 2  # make sure there are more than two occurrences of var
 
     # duplicate a new node, make sure word equations are duplicated
@@ -724,22 +744,27 @@ def turn_one_var_to_quadratic(var: StrVariable, selected_we: WordEquation,
         node.reg_constraints, node.var_rename_count)
 
     # positions where var in word equations of ret_node
-    var_we_pos = [([True if e == var else False for e in we.lhs],
-                   [True if e == var else False for e in we.rhs]) for we in ret_node.word_equations]
-
-    print(print_word_equation_list_pretty(ret_node.word_equations))
-    print(var_we_pos)
+    # format: (idx of word equation, lhs(0) or rhs(1), idx of word expression)
+    var_we_pos_idx = [elem for line in [[(i, 0, i0) for i0, e0 in enumerate(we.lhs) if e0 == var] +
+                                        [(i, 1, i1) for i1, e1 in enumerate(we.rhs) if e1 == var]
+                                        for i, we in enumerate(ret_node.word_equations)] for elem in line]
+    # print(print_word_equation_list_pretty(ret_node.word_equations))
+    # print(f'var_we_pos_idx: {var_we_pos_idx}')
 
     # make new variable for quadratic replacement. also update length and regular constraints
-    print('----- turn_one_var_to_quadratic() -----')
-    print(f'var.value: {var.value}')
     var_original_name = internal_str_var_origin_name(var.value)
-    print(f'var_original_name: {var_original_name}')
     var_name = var_original_name if var_original_name else var.value
     ret_node.var_rename_count[var_name] += 1
-    print(f'var_name: {var_name}')
     var_new_name = prob.new_variable(ValueType.string, var_name, ret_node.var_rename_count[var_name])
-    print(f'var_new_name: {var_new_name}')
+    if debug:
+        print('----- turn_one_var_to_quadratic() -----')
+        print(f'var.value: {var.value}')
+        print(f'var_original_name: {var_original_name}')
+        print(f'var_name: {var_name}')
+        print(f'var_new_name: {var_new_name}')
+        print('before turn quadratic')
+        print(print_word_equation_list_pretty(ret_node.word_equations))
+        print(f'var_we_pos_idx: {var_we_pos_idx}')
 
     new_var = StrVariable(var_new_name)
 
@@ -754,102 +779,105 @@ def turn_one_var_to_quadratic(var: StrVariable, selected_we: WordEquation,
     # replace var to new_var for quadratic
     # don't replace 1: the string variable to be transform (head of the selected word equation)
     lh, rh = selected_we.peek()
-    for idx, we in enumerate(ret_node.word_equations):
-        if we == selected_we:
-            # make sure only one head of the selected word equation is excluded for replacement
-            if lh == var:
-                assert var_we_pos[idx][0][0] and not var_we_pos[idx][1][0]
-                var_we_pos[idx][0][0] = False
-            elif rh == var:
-                assert not var_we_pos[idx][0][0] and var_we_pos[idx][1][0]
-                var_we_pos[idx][1][0] = False
-            else:
-                print(var, lh, rh)
-                assert False
-            # if there are more variables to be replaced, exclude the first one
-            if True in var_we_pos[idx][0]:
-                var_we_pos[idx][0][var_we_pos[idx][0].index(True)] = False
-            elif True in var_we_pos[idx][1]:
-                var_we_pos[idx][1][var_we_pos[idx][1].index(True)] = False
-            else:  # otherwise, exclude the first one found in other word equations
-                for pos in var_we_pos:
-                    if True in pos[0]:
-                        pos[0][pos[0].index(True)] = False
-                        break
-                    elif True in pos[1]:
-                        pos[1][pos[1].index(True)] = False
-                        break
-            break
+    we_idx = ret_node.word_equations.index(selected_we)
+    # make sure the head of the selected word equation for transform is excluded for replacement
+    if lh == var:
+        assert (we_idx, 0, 0) in var_we_pos_idx and (we_idx, 1, 0) not in var_we_pos_idx
+        var_we_pos_idx.remove((we_idx, 0, 0))
+    elif rh == var:
+        assert (we_idx, 0, 0) not in var_we_pos_idx and (we_idx, 1, 0) in var_we_pos_idx
+        var_we_pos_idx.remove((we_idx, 1, 0))
+    else:
+        print(var, lh, rh)
+        print(var_we_pos_idx)
+        assert False
+
+    assert len(var_we_pos_idx) > 0
+    wes_candidate = [we for we in ret_node.get_word_equations_to_solve() if var in we.lhs + we.rhs]
+    assert len(wes_candidate) > 0
+    # strategy 0: exclude one more var in word equation selected_we as the base of transform,
+    #             or exclude the first one in var_we_pos_idx
+    if debug:
+        print('quadratic strategy: {q_strategy}')
+    q_strategy_same_flag = False
+    if q_strategy == QuadraticStrategy.same_first or q_strategy == QuadraticStrategy.same_short or \
+            q_strategy == QuadraticStrategy.same_short_side:
+        if debug:
+            print(f'var_we_pos_idx <before>: {var_we_pos_idx}')
+        var_sel_we_pos_idx = [e for e in var_we_pos_idx if e[0] == we_idx]
+        if debug:
+            print(f'var_sel_we_pos_idx: {var_sel_we_pos_idx}')
+        if len(var_sel_we_pos_idx) > 0:
+            var_we_pos_idx.remove(var_sel_we_pos_idx[0])
+        else:
+            q_strategy_same_flag = True  # proceed with other strategies
+            # var_we_pos_idx.remove(var_we_pos_idx[0])
+        if debug:
+            print(f'var_we_pos_idx *<after>*: {var_we_pos_idx}')
+    if q_strategy == QuadraticStrategy.first or \
+            (q_strategy == QuadraticStrategy.same_first and q_strategy_same_flag):
+        if debug:
+            print(f'var_we_pos_idx before: {var_we_pos_idx}')
+        var_we_pos_idx.remove(var_we_pos_idx[0])
+        if debug:
+            print(f'var_we_pos_idx after: {var_we_pos_idx}')
+    elif q_strategy == QuadraticStrategy.shortest or \
+            (q_strategy == QuadraticStrategy.same_short and q_strategy_same_flag):
+        if debug:
+            print(f'var_we_pos_idx before: {var_we_pos_idx}')
+        len_sorted_wes = sorted(wes_candidate, key=lambda x: len(x))
+        if debug:
+            print(f'len_sorted_wes:')
+            print(print_word_equation_list_pretty(len_sorted_wes))
+        for we in len_sorted_wes:
+            idx = ret_node.word_equations.index(we)
+            tmp_pos_idx = [e for e in var_we_pos_idx if e[0] == idx]
+            if len(tmp_pos_idx) > 0:
+                var_we_pos_idx.remove(tmp_pos_idx[0])
+                break
+        if debug:
+            print(f'var_we_pos_idx after: {var_we_pos_idx}')
+    elif q_strategy == QuadraticStrategy.shortest_side or \
+            (q_strategy == QuadraticStrategy.same_short_side and q_strategy_same_flag):
+        if debug:
+            print(f'var_we_pos_idx before: {var_we_pos_idx}')
+        len_sorted_wes = sorted(wes_candidate, key=lambda x: min(len(x.lhs), len(x.rhs)))
+        if debug:
+            print(f'len_sorted_wes:')
+            print(print_word_equation_list_pretty(len_sorted_wes))
+        for we in len_sorted_wes:
+            idx = ret_node.word_equations.index(we)
+            tmp_pos_idx = [e for e in var_we_pos_idx if e[0] == idx]
+            if len(tmp_pos_idx) > 0:
+                var_we_pos_idx.remove(tmp_pos_idx[0])
+                break
+        if debug:
+            print(f'var_we_pos_idx after: {var_we_pos_idx}')
+    else:
+        assert not q_strategy_same_flag and \
+               (q_strategy == QuadraticStrategy.same_first or
+                q_strategy == QuadraticStrategy.same_short or
+                q_strategy == QuadraticStrategy.same_short_side)
+        # print(f'quadratic strategy error: {q_strategy}')
+        # assert False
 
     # do replacement
-    for idx, we in enumerate(ret_node.word_equations):
-        for i in range(len(we.lhs)):
-            if var_we_pos[idx][0][i]:
-                assert we.lhs[i] == var
-                we.lhs[i] = new_var
-        for i in range(len(we.rhs)):
-            if var_we_pos[idx][1][i]:
-                assert we.rhs[i] == var
-                we.rhs[i] = new_var
+    if len(var_we_pos_idx) > 0:
+        for e in var_we_pos_idx:
+            if e[1] == 0:
+                assert ret_node.word_equations[e[0]].lhs[e[2]] == var
+                ret_node.word_equations[e[0]].lhs[e[2]] = new_var
+            else:
+                assert ret_node.word_equations[e[0]].rhs[e[2]] == var
+                ret_node.word_equations[e[0]].rhs[e[2]] = new_var
 
     assert ret_node.var_occurrence(var) == 2
-    print(print_word_equation_list_pretty(ret_node.word_equations))
-    print(var_we_pos)
+    if debug:
+        print('after turn quadratic')
+        print(print_word_equation_list_pretty(ret_node.word_equations))
+        print(f'var_we_pos_idx: {var_we_pos_idx}')
 
-    return ret_node
-
-
-# rename a string variable if it occurs more than twice in a node, then return the new node
-# def turn_one_var_to_quadratic(var: StrVariable, we_idx: int, node: SolveTreeNode, prob: Problem) -> SolveTreeNode:
-#     if node.var_occurrence(var) <= 2:  # do nothing if no more than two occurrences
-#         return node
-#
-#     var_occurred_count: int = 0
-#     var_new_name: str = ''
-#     new_var: Optional[StrVariable] = None
-#     ret_node = SolveTreeNode(
-#         [WordEquation(lhs, rhs) for lhs, rhs in [we.copy_expressions() for we in node.word_equations]],
-#         node.reg_constraints, node.var_rename_count)
-#
-#     var_we_pos = [([we.lhs.index(e) if e == var else -1 for e in we.lhs],
-#                    [we.rhs.index(e) if e == var else -1 for e in we.rhs]) for we in ret_node.word_equations]
-#     print(var_we_pos)
-#
-#     # print(node.var_rename_count)
-#     # print(var)
-#
-#     def _replace(expr):
-#         nonlocal var_occurred_count, var_new_name, new_var, ret_node
-#         for index, e in enumerate(expr):
-#             if e == var:
-#                 var_occurred_count += 1
-#                 if var_occurred_count > 2:
-#                     # first time of replace, generate new var name and add corresponding length and regular constraints
-#                     if var_new_name == '' and not new_var:
-#                         print(f'var.value: {var.value}')
-#                         var_original_name = internal_str_var_origin_name(var.value)
-#                         print(f'var_original_name: {var_original_name}')
-#                         var_name = var_original_name if var_original_name else var.value
-#                         ret_node.var_rename_count[var_name] += 1
-#                         print(f'var_name: {var_name}')
-#                         var_new_name = prob.new_variable(ValueType.string, var_name, ret_node.var_rename_count[var_name])
-#                         print(f'var_new_name: {var_new_name}')
-#
-#                         new_var = StrVariable(var_new_name)
-#                         lc = LengthConstraint([var.length()], [new_var.length()])
-#                         if lc not in prob.len_constraints:
-#                             prob.add_length_constraint(lc)
-#                         if ret_node.reg_constraints:
-#                             reg_cons = ret_node.reg_constraints
-#                             if var.value in reg_cons:
-#                                 reg_cons[new_var.value] = reg_cons[var.value]
-#                     expr[index] = new_var
-#
-#     for we in ret_node.word_equations:
-#         _replace(we.lhs)
-#         _replace(we.rhs)
-#
-#     return ret_node
+    return ret_node, new_var
 
 
 def turn_to_quadratic_wes(prob: Problem, wes: Optional[List[WordEquation]] = None):
@@ -965,6 +993,10 @@ def print_transform_rewrite_pretty(trans: Transform) -> str:
         return f'{lval}={rval}{lval}'
     elif trans.rewrite == Rewrite.rvar_longer_var:
         return f'{rval}={lval}{rval}'
+    elif trans.rewrite == Rewrite.on_the_fly_quadratic:
+        return ''
+    else:
+        return ''
 
 
 def print_transform_rewrite_length(trans: Transform) -> str:
@@ -994,6 +1026,10 @@ def print_transform_rewrite_length(trans: Transform) -> str:
         return f'{lval}={lval}+{rval}'
     elif trans.rewrite == Rewrite.rvar_longer_var:
         return f'{rval}={rval}+{lval}'
+    elif trans.rewrite == Rewrite.on_the_fly_quadratic:
+        return ''
+    else:
+        return ''
 
 
 def print_tree_pretty(tree: SolveTree, max_num: int = 0):

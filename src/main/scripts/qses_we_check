@@ -12,7 +12,7 @@ sys.path.append(f'{_parent_dir}/python')
 from argparse import ArgumentParser
 from typing import Optional
 from prob import Problem
-from solver import BasicSolver, Strategy
+from solver import BasicSolver, Strategy, QuadraticStrategy
 from parsing.basic import parse_file, parse_string
 
 
@@ -54,9 +54,11 @@ def main(argv):
                                                      "full, shortest, shortest_side, one_elem_first, var_char_first, "
                                                      "var_var_first, empty_vars_first",
                             dest="strategy", default="")
-    arg_parser.add_argument("-q", "--quadratic", help="Apply on-the-fly quadratic for non-quadratic problems, "
-                                                      "default is \'off\' (set \'on\' to apply)",
-                            dest="quadratic", default="off")
+    arg_parser.add_argument("-q", "--quadratic", help="Apply on-the-fly quadratic for non-quadratic problems with "
+                                                      "specified strategy, default is \'off\' (Available strategies: "
+                                                      "same_first, same_short, same_short_side, "
+                                                      "first, shortest, shortest_side).",
+                            dest="quadratic", default="")
     arg_parser.add_argument("-d", "--debug", help="Set debug flag to print out transform details, default is \'off\' "
                                                   "(set \'on\' to activate)",
                             dest="debug", default="off")
@@ -66,39 +68,27 @@ def main(argv):
     problem = parse_problem(args.filename)
     assert problem
     solver = BasicSolver(problem)
-    if args.quadratic == 'on':
+    if args.quadratic != 'off':
         solver.on_the_fly_quadratic = True
+        try:
+            solver.quadratic_strategy = QuadraticStrategy[args.quadratic]
+        except KeyError:
+            print(f'quadratic strategy \'{args.quadratic}\' not available. Run with -h to see available strategies.')
+            exit(1)
     if args.debug == 'on':
         solver.debug = True
-    if args.strategy == 'full':
-        solver.strategy = Strategy.full
-    elif args.strategy == 'first':
-        solver.strategy = Strategy.first
-    elif args.strategy == 'shortest':
-        solver.strategy = Strategy.shortest
-    elif args.strategy == 'shortest_side':
-        solver.strategy = Strategy.shortest_side
-    elif args.strategy == 'one_elem_first':
-        solver.strategy = Strategy.one_elem_first
-    elif args.strategy == 'var_char_first':
-        solver.strategy = Strategy.var_char_first
-    elif args.strategy == 'var_var_first':
-        solver.strategy = Strategy.var_var_first
-    elif args.strategy == 'empty_vars_first':
-        solver.strategy = Strategy.empty_vars_first
-    elif args.strategy == 'customized':
-        solver.strategy = Strategy.customized
-    elif args.strategy == '':
+    if args.strategy == '':
         pass  # default strategy (check solver.py)
     else:
-        print(f'Specified strategy \'{args.strategy}\' not available. Run with -h to see available strategies.')
-        exit(1)
+        try:
+            solver.strategy = Strategy[args.strategy]
+        except KeyError:
+            print(f'Specified strategy \'{args.strategy}\' not available. Run with -h to see available strategies.')
+            exit(1)
     solver.solve()
-    if args.strategy != '':
-        # msg = f'# of nodes: {solver.resolve.num_nodes()}, # of transitions: {solver.resolve.num_transitions()}, '
-        msg = f'{args.strategy},{solver.resolve.num_nodes()},{solver.resolve.num_transitions()},'
-    else:
-        msg = ''
+    # msg = f'# of nodes: {solver.resolve.num_nodes()}, # of transitions: {solver.resolve.num_transitions()}, '
+    msg = f'{solver.strategy},{solver.quadratic_strategy},{solver.resolve.num_nodes()},' \
+          f'{solver.resolve.num_transitions()},'
     if solver.resolve.has_solution():
         print(msg + 'sat')
     else:
