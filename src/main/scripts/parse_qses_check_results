@@ -16,6 +16,7 @@ from pypeg2 import *
 
 _column_width = 6
 Number = re.compile(r"\d+")
+Identifier = re.compile(r"[a-zA-z_]+[a-zA-z_0-9]")
 RestLines = re.compile(r"^(.+)(?:\n|\r\n?)((?:(?:\n|\r\n?).+)+)", re.MULTILINE)
 
 
@@ -54,8 +55,12 @@ class DoubleCheckReport(List):
               omit(DoubleCheckResultBlock), omit(DoubleCheckResultBlock)
 
 
+class StrategyName(List):
+    grammar = Identifier, optional(',', Identifier)
+
+
 class StrategyResult(Namespace):
-    grammar = name(), ',', attr('nodes', int), ',', attr('transitions', int), ',', attr('result', str)
+    grammar = attr('strategy', StrategyName), ',', attr('nodes', int), ',', attr('transitions', int), ',', attr('result', CheckResult)
 
 
 class StrategyComparisonResult(List):
@@ -63,7 +68,7 @@ class StrategyComparisonResult(List):
 
 
 class StrategyComparisonReportHead(List):
-    grammar = 'path of problem set: ', name(), omit(restline)
+    grammar = 'path of problem set: ', name(), omit(restline), optional(omit(restline))
 
 
 class StrategyComparisonReport(List):
@@ -105,38 +110,63 @@ def main(argv):
         report_head = parse(report[0], StrategyComparisonReportHead)
         print(f'parsing strategy comparison results of {report_head.name}')
         res = list()
+        res_all_timeout = list()
         for block in report[1:]:
-            res.append(parse(block, StrategyComparisonResult))
+            parsed = parse(block, StrategyComparisonResult)
+            if len([e for e in parsed if e.result != 'timeout']) > 0:  # has any strategy not timeout
+                res.append(parsed)
+            else:
+                res_all_timeout.append(parsed)
         tgt_dir = f'{report_head.name}_strategy_comparison'
         filenames = [e.filename for e in res]
+        # print(res[0])
+        # print(res[0].filename)
+        # for i in range(len(res[0])):
+        #     print(res[0][i].strategy)
+        #     print(res[0][i].nodes)
+        #     print(res[0][i].transitions)
+        #     print(res[0][i].result)
+        # exit(0)
     else:
         assert False
 
     # print(filenames)
     # print(len(filenames))
 
+    num_files = len(filenames)
     if args.analysis == 'off':
         os.system(f'mkdir {tgt_dir}')
         for f in filenames:
             print(f'copying {f}')
             os.system(f'cp {report_head.name}/{f} {tgt_dir}')
+        print(f'{num_files} files copied.')
     elif args.analysis == 'on':
         assert args.type == 's'  # only for strategy comparison results
         num_strategy = len(res[0])
         strategy_groups_sat = list()
         strategy_groups_unsat = list()
+        strategy_groups_timeout = list()
         for i in range(num_strategy):
             strategy_groups_sat.append([e[i] for e in res if e[i].result == 'sat'])
             strategy_groups_unsat.append([e[i] for e in res if e[i].result == 'unsat'])
+            strategy_groups_timeout.append([e[i] for e in res if e[i].result == 'timeout'])
 
-        print('Task: ANALYSIS')
+        print('\nTask: ANALYSIS')
+        print(f'number of results: {num_files} (excluded {len(res_all_timeout)} cases with all strategies are timeout)')
         for i in range(num_strategy):
-            strategy_name = strategy_groups_sat[i][0].name
+            strategy_name = ' - '.join(strategy_groups_sat[i][0].strategy)
             sat_nodes = [e.nodes for e in strategy_groups_sat[i]]
             sat_trans = [e.transitions for e in strategy_groups_sat[i]]
             unsat_nodes = [e.nodes for e in strategy_groups_unsat[i]]
             unsat_trans = [e.transitions for e in strategy_groups_unsat[i]]
+
+            num_sat = len(sat_nodes)
+            num_unsat = len(unsat_nodes)
+            num_timeout = len(strategy_groups_timeout[i])
+            timeout_percent = round(num_timeout / num_files * 100, 2)
+
             print(f'\nstrategy: {strategy_name}')
+            print(f'  #sat: {num_sat}, #unsat: {num_unsat}, #timeout: {num_timeout}, %timeout: {timeout_percent}')
             print(f'    node average, median (sat)        : '
                   f'{str(int(round(numpy.average(sat_nodes)))).rjust(_column_width)}, '
                   f'{str(int(round(numpy.median(sat_nodes)))).rjust(_column_width)}')
