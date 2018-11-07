@@ -185,7 +185,8 @@ celerybeat-schedule
 ### Project Specific Rules
 *.*Log
 !/container/build
-/benchmarks
+/benchmarks/*
+!/benchmarks/*.sh
 src/main/antlr/*
 !src/main/antlr/*.g4
 src/main/python/generated/*
