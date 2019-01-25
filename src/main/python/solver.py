@@ -1087,7 +1087,7 @@ def print_tree_dot_pretty(tree: SolveTree) -> str:
             next_node_str = print_word_equation_list_pretty(r.source.word_equations) + '\n' +\
                             print_reg_constraints_simple(r.source)
             dot.edge(node_str, next_node_str, print_transform_rewrite_pretty(r))
-    print(dot.source)
+    # print(dot.source)
     dot.render()
     return name
 

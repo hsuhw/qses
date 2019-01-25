@@ -12,7 +12,7 @@ sys.path.append(f'{_parent_dir}/python')
 from argparse import ArgumentParser
 from typing import Optional
 from prob import Problem
-from solver import BasicSolver, Strategy, QuadraticStrategy
+from solver import BasicSolver, Strategy, QuadraticStrategy, print_tree_dot_pretty
 from parsing.basic import parse_file, parse_string
 
 
@@ -50,18 +50,22 @@ def main(argv):
                                             "(ignore length constraints):",
                                 epilog=None)
     arg_parser.add_argument("filename", help="filename to check")
-    arg_parser.add_argument("-s", "--strategy", help="Transform strategy, default is first. Strategies available: "
+    arg_parser.add_argument("-s", "--strategy", help="Transform strategy, default is \'shortest_side\'. "
+                                                     "Strategies available: "
                                                      "full, shortest, shortest_side, one_elem_first, var_char_first, "
                                                      "var_var_first, empty_vars_first",
-                            dest="strategy", default="")
+                            dest="strategy", default="shortest_side")
     arg_parser.add_argument("-q", "--quadratic", help="Apply on-the-fly quadratic for non-quadratic problems with "
-                                                      "specified strategy, default is \'off\' (Available strategies: "
+                                                      "specified strategy, default is \'shortest_side\' "
+                                                      "(Available strategies: "
                                                       "same_first, same_short, same_short_side, "
                                                       "first, shortest, shortest_side).",
-                            dest="quadratic", default="")
+                            dest="quadratic", default="shortest_side")
     arg_parser.add_argument("-d", "--debug", help="Set debug flag to print out transform details, default is \'off\' "
                                                   "(set \'on\' to activate)",
                             dest="debug", default="off")
+    arg_parser.add_argument("-g", "--graphviz", help="Output Graphviz, default is \'off\'. (set \'on\' to activate)",
+                            dest="graphviz", default="off")
     args = arg_parser.parse_args()
     # print(args.filename)
     # print(args.strategy)
@@ -93,6 +97,10 @@ def main(argv):
         print(msg + 'sat')
     else:
         print(msg + 'unsat')
+
+    if args.graphviz == 'on':
+        fn = print_tree_dot_pretty(solver.resolve)
+        print(f'Graphviz output name: \"{fn}.gv.pdf\"\n')
 
 
 if __name__ == '__main__':
