@@ -12,7 +12,7 @@ sys.path.append(f'{_parent_dir}/python')
 from argparse import ArgumentParser
 from typing import Optional
 from prob import Problem
-from solver import BasicSolver, Strategy, QuadraticStrategy, print_tree_dot_pretty
+from solver import BasicSolver, Strategy, QuadraticStrategy, print_tree_dot_pretty, print_tree_dot_pretty_sub
 from parsing.basic import parse_file, parse_string
 
 
@@ -64,7 +64,8 @@ def main(argv):
     arg_parser.add_argument("-d", "--debug", help="Set debug flag to print out transform details, default is \'off\' "
                                                   "(set \'on\' to activate)",
                             dest="debug", default="off")
-    arg_parser.add_argument("-g", "--graphviz", help="Output Graphviz, default is \'off\'. (set \'on\' to activate)",
+    arg_parser.add_argument("-g", "--graphviz", help="Output Graphviz, default is \'off\'. (set \'on\' to activate, "
+                                                     "set \'sub\' to print a sub-graph",
                             dest="graphviz", default="off")
     args = arg_parser.parse_args()
     # print(args.filename)
@@ -100,6 +101,9 @@ def main(argv):
 
     if args.graphviz == 'on':
         fn = print_tree_dot_pretty(solver.resolve)
+        print(f'Graphviz output name: \"{fn}.gv.pdf\"\n')
+    if args.graphviz == 'sub':
+        fn = print_tree_dot_pretty_sub(solver.resolve)
         print(f'Graphviz output name: \"{fn}.gv.pdf\"\n')
 
 

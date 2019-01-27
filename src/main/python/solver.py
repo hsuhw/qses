@@ -1092,6 +1092,29 @@ def print_tree_dot_pretty(tree: SolveTree) -> str:
     return name
 
 
+def print_tree_dot_pretty_sub(tree: SolveTree) -> str:
+    name = f'tree_obj_{id(tree)}'
+
+    dot = Digraph(name=name, comment=name)
+    for k in tree.node_relations.keys():
+        node_str = print_word_equation_list_pretty(k.word_equations) + '\n' + \
+                   print_reg_constraints_simple(k)
+        flag = False
+        for r in tree.node_relations[k]:
+            next_node_str = print_word_equation_list_pretty(r.source.word_equations) + '\n' +\
+                            print_reg_constraints_simple(r.source)
+            rewrite_str = print_transform_rewrite_pretty(r)
+            # if 'X=YX' in rewrite_str or 'Y=XY' in rewrite_str:
+            if r.rewrite == Rewrite.lvar_longer_var or r.rewrite == Rewrite.rvar_longer_var:
+                dot.edge(node_str, next_node_str, rewrite_str)
+                flag = True
+        if flag:
+            dot.node(node_str, node_str)
+    # print(dot.source)
+    dot.render()
+    return name
+
+
 def print_tree_c_program(tree: SolveTree, code_type: str, problem: Problem) -> str:  # returns the filename
     # check type validity
     if code_type != 'interProc' and code_type != 'UAutomizerC' and code_type != 'EldaricaC':
