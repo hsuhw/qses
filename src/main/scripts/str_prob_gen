@@ -4,14 +4,14 @@ import sys
 import os
 import random
 from argparse import ArgumentParser
-from typing import Tuple, List
+from typing import List, Tuple, Dict, Set, Optional
 
 symbols = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 max_elems = 6
 min_elems = 1
-max_num_we = 3
-# max_len_we = 3
-
+max_num_we = 1
+max_lenc = 1
+max_lenc_coeff = 5  # coefficient range [-x,x], length constraint format: aX + bY + cX + const >= 0
 
 Elem = Tuple[int, int]
 
@@ -26,6 +26,13 @@ def num_occurrence(l: List[Elem], c: Elem):
 
 def gen_elem_random() -> Elem:
     return random.randrange(0, len(symbols)), random.randrange(0, 2)  # 0 for variable, 1 for character
+
+
+def gen_coeff_random() -> int:
+    ret = random.randrange(-max_lenc_coeff, max_lenc_coeff)  # [-x,x]
+    if ret >= 0:  # skip 0 by adding 1 for numbers >= 0
+        ret += 1
+    return ret
 
 
 def print_elem(e: Elem) -> str:
@@ -123,11 +130,46 @@ def export_smt_elems(idx: int, max_len: int, elems: List[Elem], exp_str: str = '
         return f'(str.++ {export_elem_smt(elems[idx])} {exp_str})'
 
 
+class length_constraint:
+    def __init__(self):
+        self.polynomials: Dict[int, int] = dict()  # symbol index -> coefficient (symbol index = -1 : constant)
+
+    def __str__(self):
+        return '+'.join([f'({self.polynomials[e]})({symbols[e]})' for e in self.polynomials.keys()-{-1}]) + \
+               f'({self.polynomials[-1]})>=0'
+
+    def set_polynomials(self, elems: Set[Elem]):
+        for e in elems:
+            self.polynomials[e[0]] = gen_coeff_random()
+        self.polynomials[-1] = gen_coeff_random()
+
+    def export_smt(self) -> str:
+        ret = ''
+        for idx in self.polynomials.keys()-{-1}:
+            if self.polynomials[idx] == 1:
+                str_tmp = f'(str.len {export_elem_smt((idx, 1))})'
+            else:
+                if self.polynomials[idx] < 0:  # minus
+                    str_coeff = f'(- {-self.polynomials[idx]})'
+                else:
+                    str_coeff = f'{self.polynomials[idx]}'
+                str_tmp = f'(* {str_coeff} (str.len {export_elem_smt((idx, 0))}))'
+            ret += f' {str_tmp}'
+        # constant
+        if self.polynomials[-1] < 0:  # minus
+            str_const = f'(- {-self.polynomials[-1]})'
+        else:
+            str_const = f'{self.polynomials[-1]}'
+        ret = f'(assert (>= (+{ret} {str_const}) 0))'
+        return ret
+
+
 class Problem:
     def __init__(self):
         self.we_list: List[ElemList] = list()
         for i in range(0, max_num_we):
             self.we_list.append(ElemList())
+        self.lenc_cons = length_constraint()
 
     def __eq__(self, other) -> bool:
         if isinstance(other, Problem):
@@ -159,6 +201,9 @@ class Problem:
     def num_occurrence(self, e: Elem) -> int:
         return sum([w.num_occurrence(e) for w in self.we_list])
 
+    def get_var_elems(self) -> Set[Elem]:
+        return {e for w in self.we_list for e in w.lhs + w.rhs if e[1] == 0}
+
     def is_quadratic(self):
         return True in \
                {self.num_occurrence(v) <= 2 for v in {e for w in self.we_list for e in w.lhs + w.rhs if e[1] == 0}}
@@ -169,6 +214,9 @@ class Problem:
             return vacancy[0].put_elem(e)
         else:
             return False
+
+    def generate_length_constraint(self):
+        self.lenc_cons.set_polynomials(self.get_var_elems())
 
     def generate_quadratic(self):
         while not self.is_full():
@@ -193,7 +241,7 @@ class Problem:
     def variables(self):
         return {symbols[e[0]] for w in self.we_list for e in w.lhs + w.rhs if e[1] == 0}
 
-    def export_smt(self) -> str:
+    def export_smt(self, lenc_flg:bool = False) -> str:
         if not self.is_full():
             return ''
         var = self.variables()
@@ -202,7 +250,9 @@ class Problem:
             ret += f'(declare-fun {v} () String)\n'
         for w in self.we_list:
             ret += f'{w.export_smt()}\n'
-        ret += '(check-sat)\n(get-model)'
+        if lenc_flg:
+            ret += f'{self.lenc_cons.export_smt()}\n'
+        ret += '(check-sat)\n(get-model)\n'
         return ret
 
 
@@ -215,13 +265,16 @@ def main(argv):
                                             "and each word equation has three elements "
                                             "(variable or character) each side.",
                                 epilog=None)
-    arg_parser.add_argument("-d", "--dir", help="Path to generate problems, default is ./", dest="path", default="./")
-    arg_parser.add_argument("-p", "--prefix", help="Prefix of files to be generated, default is test_",
+    arg_parser.add_argument("-d", "--dir", help="Path to generate problems, default is \"./\"",
+                            dest="path", default="./")
+    arg_parser.add_argument("-p", "--prefix", help="Prefix of files to be generated, default is \"test_\"",
                             dest="prefix", default="ttt_")
     arg_parser.add_argument("-n", "--num", help="Number of problems to be generated, default is 100",
                             dest="num", default="100", type=int)
-    arg_parser.add_argument("-q", "--quadratic", help="To generate quadratic problems, default is on",
+    arg_parser.add_argument("-q", "--quadratic", help="To generate quadratic problems, default is \"on\"",
                             dest="quadratic", default="on")
+    arg_parser.add_argument("-l", "--lenc", help="Length constraint, default is \"off\"",
+                            dest="lenc", default="off")
     args = arg_parser.parse_args()
 
     print('Generating problems....')
@@ -229,16 +282,20 @@ def main(argv):
     print(f'    prefix   : {args.prefix}')
     print(f'    num      : {args.num}')
     print(f'    quadratic: {args.quadratic}')
+    print(f'    lenc     : {args.lenc}')
 
     # # short test
     # p = Problem().generate()
+    # p.generate_length_constraint()
     # print(p)
+    # print(p.lenc_cons)
     # print(p.export_smt())
     # exit(0)
 
     # Proceed problem generation
     problem_set = set()
     quadratic_flag = args.quadratic == 'on'
+    lenc_flag = args.lenc == 'on'
     if quadratic_flag:  # generate set of quadratic problems
         while len(problem_set) < args.num:
             problem_set.add(Problem().generate_quadratic())
@@ -247,6 +304,10 @@ def main(argv):
             prob = Problem().generate()
             if not prob.is_quadratic():
                 problem_set.add(prob)
+    if lenc_flag:
+        print('Generating length constraint...')
+        for p in problem_set:
+            p.generate_length_constraint()
     if not os.path.exists(args.path):
         os.makedirs(args.path)
     os.chdir(args.path)
@@ -256,6 +317,19 @@ def main(argv):
         with open(filename, 'w') as fp:
             fp.write(p.export_smt())
         num += 1
+    # export smt with length constraints
+    if lenc_flag:
+        os.chdir('..')
+        lenc_smt_path = args.path + '_lc'
+        if not os.path.exists(lenc_smt_path):
+            os.makedirs(lenc_smt_path)
+        os.chdir(lenc_smt_path)
+        num = 1
+        for p in problem_set:
+            filename = f'{args.prefix}{str(num).zfill(len(str(args.num)))}.smt2'
+            with open(filename, 'w') as fp:
+                fp.write(p.export_smt(True))
+            num += 1
 
 
 if __name__ == '__main__':

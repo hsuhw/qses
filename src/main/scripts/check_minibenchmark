@@ -35,7 +35,24 @@ _column_width = 16
 def run_qses(filename: str, strategy: str = '', quadratic: str = 'off') -> str:
     try:
         output = str(check_output([f'{_base_dir}/qses_we_check', f'-s={strategy}', f'-q={quadratic}', filename],
-                                  stderr=STDOUT, timeout=120))
+                                  stderr=STDOUT, timeout=10))
+    except CalledProcessError as err:
+        output = str(err.output)
+    except TimeoutExpired:
+        return 'timeout'
+    # print(output)
+    if 'unsat' in output:
+        return 'unsat'
+    elif 'sat' in output:
+        return 'sat'
+    else:
+        return 'unknown'
+
+
+def run_z3qses(filename: str) -> str:
+    try:
+        output = str(check_output(['./z3qses', 'smt.string_solver=z3str3', filename],
+                                  stderr=STDOUT, timeout=10))
     except CalledProcessError as err:
         output = str(err.output)
     except TimeoutExpired:
@@ -59,7 +76,7 @@ def run_qses_strategy_comp(filename: str, quadratic: str = 'off') -> List[STRATE
         for q_strategy in q_strategy_options:
             try:
                 output = check_output([f'{_base_dir}/qses_we_check', f'-s={strategy}', f'-q={q_strategy}', filename],
-                                      stderr=STDOUT, timeout=120)
+                                      stderr=STDOUT, timeout=10)
             except CalledProcessError as err:
                 output = err.output
             except TimeoutExpired:
@@ -74,7 +91,7 @@ def run_qses_strategy_comp(filename: str, quadratic: str = 'off') -> List[STRATE
 
 def run_cvc4(filename: str) -> str:
     try:
-        output = str(check_output(['cvc4', '--lang', 'smt', filename], stderr=STDOUT, timeout=120))
+        output = str(check_output(['cvc4', '--lang', 'smt', filename], stderr=STDOUT, timeout=10))
     except CalledProcessError as err:
         output = str(err.output)
     except TimeoutExpired:
@@ -90,7 +107,7 @@ def run_cvc4(filename: str) -> str:
 
 def run_z3str3(filename: str) -> str:  # specify string solver z3str3
     try:
-        output = str(check_output(['z3', 'smt.string_solver=z3str3', filename], stderr=STDOUT, timeout=120))
+        output = str(check_output(['z3', 'smt.string_solver=z3str3', filename], stderr=STDOUT, timeout=10))
     except CalledProcessError as err:
         output = str(err.output)
     except TimeoutExpired:
@@ -106,7 +123,7 @@ def run_z3str3(filename: str) -> str:  # specify string solver z3str3
 
 def run_z3(filename: str) -> str:  # without specifying z3str3 string solver
     try:
-        output = str(check_output(['z3', filename], stderr=STDOUT, timeout=120))
+        output = str(check_output(['z3', filename], stderr=STDOUT, timeout=10))
     except CalledProcessError as err:
         output = str(err.output)
     except TimeoutExpired:
@@ -120,13 +137,23 @@ def run_z3(filename: str) -> str:  # without specifying z3str3 string solver
         return 'unknown'
 
 
-def print_tuple(e):
+def print_tuple(e: RET_FORMAT) -> str:
     return ',  '.join(e)
+
+
+def print_tuple_w_name(e: RET_FORMAT, tool_names: List[str]) -> str:
+    assert len(e) == len(tool_names) + 1
+    ret:RET_FORMAT = list()
+    ret.append(e[0])
+    for i in range(1,len(e)):
+        ret.append(f'{tool_names[i-1]}:{e[i]}')
+    return ',  '.join(ret)
 
 
 def write_result_double_check(benchmark_path: str, prob_size: int, strategy: str, qses_wrong: List[RET_FORMAT],
                               qses_timeout: List[RET_FORMAT], inconsistent: List[RET_FORMAT], all_sat: List[RET_FORMAT],
-                              all_unsat: List[RET_FORMAT], quadratic: str):
+                              all_unsat: List[RET_FORMAT], all_ans_note: List[RET_FORMAT], quadratic: str):
+    # write result
     with open(f'{os.path.basename(benchmark_path)}.double_check', 'w') as fp:
         fp.write(f'path of problem set: {benchmark_path}\n')
         fp.write(f'number of processed problems:  {prob_size}\n')
@@ -152,6 +179,55 @@ def write_result_double_check(benchmark_path: str, prob_size: int, strategy: str
                  f'format: (filename, qses, cvc4, z3, z3str3) -----\n')
         for e in all_unsat:
             fp.write(f'{print_tuple(e)}\n')
+    # write all results
+    with open(f'{os.path.basename(benchmark_path)}.log', 'w') as fp:
+        fp.write(f'path of problem set: {benchmark_path}\n')
+        fp.write(f'number of processed problems:  {prob_size}\n')
+        fp.write(f'on-the-fly quadratic strategy: {quadratic}\n')
+        if strategy == '':
+            fp.write(f'qses strategy set: default\n')
+        else:
+            fp.write(f'qses strategy set: {strategy}\n')
+        fp.write(f'format: (filename, qses:result, cvc4:result, z3:result, z3str3:result)\n')
+        tool_names = ['qses', 'cvc4', 'z3', 'z3str3']
+        for e in all_ans_note:
+            fp.write(f'{print_tuple_w_name(e,tool_names)}\n')
+
+
+def write_result_double_check_z3qses(benchmark_path: str, prob_size: int, z3qses_wrong: List[RET_FORMAT],
+                                     z3qses_timeout: List[RET_FORMAT], inconsistent: List[RET_FORMAT],
+                                     all_sat: List[RET_FORMAT], all_unsat: List[RET_FORMAT],
+                                     all_ans_note: List[RET_FORMAT]):
+    # write result
+    with open(f'{os.path.basename(benchmark_path)}.z3qses_double_check', 'w') as fp:
+        fp.write(f'path of problem set: {benchmark_path}\n')
+        fp.write(f'number of processed problems:  {prob_size}\n')
+        fp.write(f'\n----- z3qses wrong: {len(z3qses_wrong)} cases. format: (filename, z3qses, cvc4, z3, z3str3)'
+                 f' -----\n')
+        for e in z3qses_wrong:
+            fp.write(f'{print_tuple(e)}\n')
+        fp.write(f'\n----- z3qses timeout: {len(z3qses_timeout)} cases. format: (filename, z3qses, cvc4, z3, z3str3)'
+                 f' -----\n')
+        for e in z3qses_timeout:
+            fp.write(f'{print_tuple(e)}\n')
+        fp.write(f'\n----- inconsist results: {len(inconsistent)} cases. format: (filename, z3qses, cvc4, z3, z3str3)'
+                 f' -----\n')
+        for e in inconsistent:
+            fp.write(f'{print_tuple(e)}\n')
+        fp.write(f'\n----- sat results: {len(all_sat)} cases. format: (filename, z3qses, cvc4, z3, z3str3) -----\n')
+        for e in all_sat:
+            fp.write(f'{print_tuple(e)}\n')
+        fp.write(f'\n----- unsat results: {len(all_unsat)} cases. format: (filename, z3qses, cvc4, z3, z3str3) -----\n')
+        for e in all_unsat:
+            fp.write(f'{print_tuple(e)}\n')
+    # write all results
+    with open(f'{os.path.basename(benchmark_path)}.z3qses_log', 'w') as fp:
+        fp.write(f'path of problem set: {benchmark_path}\n')
+        fp.write(f'number of processed problems:  {prob_size}\n')
+        fp.write(f'format: (filename, z3qses:result, cvc4:result, z3:result, z3str3:result) -----\n')
+        tool_names = ['z3qses', 'cvc4', 'z3', 'z3str3']
+        for e in all_ans_note:
+            fp.write(f'{print_tuple_w_name(e,tool_names)}\n')
 
 
 def write_result_strategy(benchmark_path: str, prob_size: int, result: List[Tuple[str, List[STRATEGY_COMP_FORMAT]]],
@@ -171,6 +247,7 @@ def double_check(benchmark_path: str, names: List[str], strategy: str, quadratic
     inconsistent: List[RET_FORMAT] = list()
     all_sat: List[RET_FORMAT] = list()
     all_unsat: List[RET_FORMAT] = list()
+    all_ans_note: List[RET_FORMAT] = list()
     counter = 0
     for name in names:
         filename = f'{benchmark_path}/{name}'
@@ -181,6 +258,7 @@ def double_check(benchmark_path: str, names: List[str], strategy: str, quadratic
         print(f'{name} checked by qses, cvc4, z3, z3str3: {ret_qses}, {ret_cvc4}, {ret_z3}, {ret_z3str3}')
 
         ret = (name, ret_qses, ret_cvc4, ret_z3, ret_z3str3)
+        all_ans_note.append(ret)
         if ret_qses != ret_cvc4 or ret_qses != ret_z3 or ret_qses != ret_z3str3 or \
                 ret_cvc4 != ret_z3 or ret_cvc4 != ret_z3str3 or ret_z3 != ret_z3str3:
             inconsistent.append(ret)
@@ -199,11 +277,54 @@ def double_check(benchmark_path: str, names: List[str], strategy: str, quadratic
         counter += 1
         if counter % 1000 == 0:
             write_result_double_check(benchmark_path, counter, strategy, qses_wrong, qses_timeout, inconsistent,
-                                      all_sat, all_unsat, quadratic)
+                                      all_sat, all_unsat, all_ans_note, quadratic)
 
     # write the final results
     write_result_double_check(benchmark_path, counter, strategy, qses_wrong, qses_timeout, inconsistent, all_sat,
-                              all_unsat, quadratic)
+                              all_unsat, all_ans_note, quadratic)
+
+
+def double_check_z3qses(benchmark_path: str, names: List[str]):
+    z3qses_wrong: List[RET_FORMAT] = list()
+    z3qses_timeout: List[RET_FORMAT] = list()
+    inconsistent: List[RET_FORMAT] = list()
+    all_sat: List[RET_FORMAT] = list()
+    all_unsat: List[RET_FORMAT] = list()
+    all_ans_note: List[RET_FORMAT] = list()
+    counter = 0
+    for name in names:
+        filename = f'{benchmark_path}/{name}'
+        ret_z3qses = run_z3qses(filename)
+        ret_cvc4 = run_cvc4(filename)
+        ret_z3 = run_z3(filename)
+        ret_z3str3 = run_z3str3(filename)
+        print(f'{name} checked by z3qses, cvc4, z3, z3str3: {ret_z3qses}, {ret_cvc4}, {ret_z3}, {ret_z3str3}')
+
+        ret = (name, ret_z3qses, ret_cvc4, ret_z3, ret_z3str3)
+        all_ans_note.append(ret)
+        if ret_z3qses != ret_cvc4 or ret_z3qses != ret_z3 or ret_z3qses != ret_z3str3 or \
+                ret_cvc4 != ret_z3 or ret_cvc4 != ret_z3str3 or ret_z3 != ret_z3str3:
+            inconsistent.append(ret)
+        if ret_z3qses == 'timeout':
+            z3qses_timeout.append(ret)
+        if (ret_z3qses == 'sat' and ret_cvc4 == 'unsat') or (ret_z3qses == 'unsat' and ret_cvc4 == 'sat') or \
+                (ret_z3qses == 'sat' and ret_z3 == 'unsat') or (ret_z3qses == 'unsat' and ret_z3 == 'sat') or \
+                (ret_z3qses == 'sat' and ret_z3str3 == 'unsat') or (ret_z3qses == 'unsat' and ret_z3str3 == 'sat'):
+            z3qses_wrong.append(ret)
+        if ret_z3qses == 'sat' and ret_cvc4 == 'sat' and (ret_z3 == 'sat' or ret_z3str3 == 'sat'):
+            all_sat.append(ret)
+        if ret_z3qses == 'unsat' and ret_cvc4 == 'unsat' and (ret_z3 == 'unsat' or ret_z3str3 == 'unsat'):
+            all_unsat.append(ret)
+
+        # write when 1000 problems processed to have some results if the script terminates accidentally
+        counter += 1
+        if counter % 1000 == 0:
+            write_result_double_check_z3qses(benchmark_path, counter, z3qses_wrong, z3qses_timeout, inconsistent,
+                                            all_sat, all_unsat, all_ans_note)
+
+    # write the final results
+    write_result_double_check_z3qses(benchmark_path, counter, z3qses_wrong, z3qses_timeout, inconsistent, all_sat,
+                                     all_unsat, all_ans_note)
 
 
 def is_zero_unsat(data: List[STRATEGY_COMP_FORMAT]):
@@ -255,6 +376,9 @@ def main(argv):
                                  "(Available strategies: same_first, same_short, same_short_side, "
                                  "first, shortest, shortest_side)",
                             dest="quadratic", default="off")
+    arg_parser.add_argument("-z", "--z3qses",
+                            help="Double check z3qses (qses in z3), default is \'off\', set \'on\' to use.",
+                            dest="z3qses", default="off")
     args = arg_parser.parse_args()
 
     benchmark_path = os.path.normpath(args.benchmark_path)
@@ -263,6 +387,10 @@ def main(argv):
     prob_size = len(names)
     print(f'benchmark path: {benchmark_path}')
     print(f'number of problems: {prob_size}')
+
+    if args.z3qses=='on':  # run z3qses double check
+        double_check_z3qses(benchmark_path, names)
+        exit(0)
 
     assert args.strategy in strategy_options_full + ['']
     assert args.quadratic in quadratic_strategy_options + ['on', 'off']
