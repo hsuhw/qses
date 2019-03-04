@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""
+A Python script to run given string solver on specified benchmark and export log.
+Usage:
+    check_benchmak tool_command path_of_benchmark -c=tool_name
+
+where {tool_name} can be cvc4, z3, z3str3, Trau, TrauC (z3qses)
+
+log export:
+    The log will be written in a file named '{name_of_benchmark}_{date}.log.{tool_name}'
+"""
+import sys
+import os
+import time
+_base_dir = os.path.dirname(os.path.realpath(__file__))
+from argparse import ArgumentParser
+from typing import List
+from subprocess import STDOUT, check_output, CalledProcessError, TimeoutExpired
+
+
+# default commands
+DEFAULT_CMDS = {'cvc4': ['cvc4', '--lang', 'smt', '--strings-exp'],
+                'z3seq': ['z3'],
+                'z3str3': ['z3', 'smt.string_solver=z3str3'],
+                'trau': ['./trau'],
+                'trauc': ['./trauc', 'smt.string_solver=z3str3']}
+# CVC4_CMD = ['cvc4', '--lang', 'smt']
+# Z3SEQ_CMD = ['z3']
+# Z3STR3_CMD = ['z3', 'smt.string_solver=z3str3']
+# TRAU_CMD = ['./trau']
+# TRAUC_CMD = ['./trauc smt.string_solver=z3str3']
+
+
+def check(tool_name: str, command: List[str], benchmark_files: List[str], time_out: int):
+    for file in benchmark_files:
+        shell_command = command + [file]
+        # print(f'shell_command: {shell_command}')
+        time_start = time.time()
+        try:
+            output = str(check_output(shell_command, stderr=STDOUT, timeout=time_out))
+        except CalledProcessError as err:
+            output = str(err.output)
+        except TimeoutExpired:
+            output = 'timeout'
+        time_end = time.time()
+        time_exec = time_end - time_start
+        # print(f'execution time: {time_exec} (sec.)')
+        # print(f'output: {output}')
+        if 'unsat' in output:
+            res = 'unsat'
+        elif 'sat' in output:
+            res = 'sat'
+        elif 'timeout' in output:
+            res = 'timeout'
+        elif 'segfault' in output or 'segmentation' in output or 'core dumped' in output:
+            res = 'core_dumped'
+            print(f'output: {output}')
+        elif 'unknown' in output:
+            res = 'unknown'
+        else:
+            res = '???'
+            print(f'output: {output}')
+
+        # print(f'result: {res}')
+        print(f'{file}, {tool_name}, {res}, {"{:2.3f}".format(time_exec)}')
+
+
+def main(argv):
+    # Set argument parser
+    arg_parser = ArgumentParser(prog=None,
+                                usage=None,
+                                description="A python script to solve word equation only by transformation "
+                                            "(ignore length constraints):",
+                                epilog=None)
+    arg_parser.add_argument("benchmark_path", help="path of benchmarks")
+    # arg_parser.add_argument("tool_command", help="command of tool", default="")
+    arg_parser.add_argument("-c", "--cmd", help="Specify command of tool to be checked."
+                                                " Use quote to include options. "
+                                                "For example, 'z3 smt.string_solver=z3str3'. "
+                                                "Some shortcut commands: "
+                                                "'cvc4' : 'cvc4 --lang smt', "
+                                                "'z3seq : 'z3', "
+                                                "'z3str3 : 'z3 smt.string_solver=z3str3', "
+                                                "'trau' : './trau' (need symbolic link), "
+                                                "'trauc' : './trauc smt.string_solver=z3str3' (need symbolic link), ",
+                            dest="cmd", default='')
+    arg_parser.add_argument("-t", "--timeout", help="Set timeout, default is 10 (seconds).",
+                            dest="timeout", default=10, type=int)
+    arg_parser.add_argument("-d", "--date", help="Set date, default is current date from system.",
+                            dest="date", default='')
+    args = arg_parser.parse_args()
+
+    # prepare benchmark
+    benchmark_path = os.path.normpath(args.benchmark_path)
+    benchmark_files = sorted([os.path.join(root, file)
+                              for root, dirs, files in os.walk(benchmark_path) for file in files])
+    benchmark_size = len(benchmark_files)
+    print(f'benchmark path: {benchmark_path}')
+    print(f'benchmark size: {benchmark_size}')
+
+    time_out = args.timeout
+    if args.date == '':
+        check_date = time.strftime('%Y%m%d', time.localtime())
+    else:
+        check_date = args.date
+
+    print(f'date: {check_date}')
+    print(f'tool: {args.cmd}')
+    # print(f'tool_command: {args.tool_command}')
+    # command = args.tool_command
+    if args.cmd == '':
+        print(f'Error, command not specified, use -h to see help.')
+        exit(1)
+    if args.cmd in DEFAULT_CMDS:
+        command = DEFAULT_CMDS[args.cmd]
+    elif ' ' in args.cmd:
+        command = args.cmd.split()
+    else:
+        command = [args.cmd]
+    check(args.cmd, command, benchmark_files, time_out)
+
+
+if __name__ == '__main__':
+    main(sys.argv)
