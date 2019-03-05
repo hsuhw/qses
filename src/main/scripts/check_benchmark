@@ -7,11 +7,12 @@ Usage:
 where {tool_name} can be cvc4, z3, z3str3, Trau, TrauC (z3qses)
 
 log export:
-    The log will be written in a file named '{name_of_benchmark}_{date}.log.{tool_name}'
+    The log will be written in a file named '{name_of_benchmark}.{date}.{tool_name}.log'
 """
 import sys
 import os
 import time
+import re
 _base_dir = os.path.dirname(os.path.realpath(__file__))
 from argparse import ArgumentParser
 from typing import List
@@ -22,19 +23,15 @@ from subprocess import STDOUT, check_output, CalledProcessError, TimeoutExpired
 DEFAULT_CMDS = {'cvc4': ['cvc4', '--lang', 'smt', '--strings-exp'],
                 'z3seq': ['z3'],
                 'z3str3': ['z3', 'smt.string_solver=z3str3'],
-                'trau': ['./trau'],
+                'trau': ['./trau', '-language', 'smt2.6'],
                 'trauc': ['./trauc', 'smt.string_solver=z3str3']}
-# CVC4_CMD = ['cvc4', '--lang', 'smt']
-# Z3SEQ_CMD = ['z3']
-# Z3STR3_CMD = ['z3', 'smt.string_solver=z3str3']
-# TRAU_CMD = ['./trau']
-# TRAUC_CMD = ['./trauc smt.string_solver=z3str3']
+RECORD = List[str]
 
 
-def check(tool_name: str, command: List[str], benchmark_files: List[str], time_out: int):
+def check(tool_name: str, command: List[str], benchmark_files: List[str], time_out: int, log_file: str):
+    fp = open(log_file, 'a')
     for file in benchmark_files:
         shell_command = command + [file]
-        # print(f'shell_command: {shell_command}')
         time_start = time.time()
         try:
             output = str(check_output(shell_command, stderr=STDOUT, timeout=time_out))
@@ -46,9 +43,9 @@ def check(tool_name: str, command: List[str], benchmark_files: List[str], time_o
         time_exec = time_end - time_start
         # print(f'execution time: {time_exec} (sec.)')
         # print(f'output: {output}')
-        if 'unsat' in output:
+        if 'unsat' in output or 'UNSAT' in output:
             res = 'unsat'
-        elif 'sat' in output:
+        elif 'sat' in output or 'SAT' in output:
             res = 'sat'
         elif 'timeout' in output:
             res = 'timeout'
@@ -61,28 +58,29 @@ def check(tool_name: str, command: List[str], benchmark_files: List[str], time_o
             res = '???'
             print(f'output: {output}')
 
-        # print(f'result: {res}')
-        print(f'{file}, {tool_name}, {res}, {"{:2.3f}".format(time_exec)}')
+        log_str = f'{file}, {tool_name}, {res}, {"{:2.3f}".format(time_exec)}'
+        print(log_str)
+        fp.write(f'{log_str}\n')
+    fp.close()
 
 
 def main(argv):
     # Set argument parser
     arg_parser = ArgumentParser(prog=None,
                                 usage=None,
-                                description="A python script to solve word equation only by transformation "
-                                            "(ignore length constraints):",
+                                description="A python script to run given string solver on specified benchmark and "
+                                            "export log.",
                                 epilog=None)
     arg_parser.add_argument("benchmark_path", help="path of benchmarks")
     # arg_parser.add_argument("tool_command", help="command of tool", default="")
-    arg_parser.add_argument("-c", "--cmd", help="Specify command of tool to be checked."
-                                                " Use quote to include options. "
-                                                "For example, 'z3 smt.string_solver=z3str3'. "
-                                                "Some shortcut commands: "
-                                                "'cvc4' : 'cvc4 --lang smt', "
-                                                "'z3seq : 'z3', "
-                                                "'z3str3 : 'z3 smt.string_solver=z3str3', "
-                                                "'trau' : './trau' (need symbolic link), "
-                                                "'trauc' : './trauc smt.string_solver=z3str3' (need symbolic link), ",
+    arg_parser.add_argument("-c", "--cmd", help="Specify command of tool to be checked.\n"
+                                                "Use quote to include options like 'z3 smt.string_solver=z3str3'.\n"
+                                                "Some shortcut commands for regular check: \n"
+                                                "'cvc4' : 'cvc4 --lang smt', \n"
+                                                "'z3seq : 'z3', \n"
+                                                "'z3str3 : 'z3 smt.string_solver=z3str3', \n"
+                                                "'trau' : './trau' (symbolic link), \n"
+                                                "'trauc' : './trauc smt.string_solver=z3str3' (symbolic link).",
                             dest="cmd", default='')
     arg_parser.add_argument("-t", "--timeout", help="Set timeout, default is 10 (seconds).",
                             dest="timeout", default=10, type=int)
@@ -95,8 +93,8 @@ def main(argv):
     benchmark_files = sorted([os.path.join(root, file)
                               for root, dirs, files in os.walk(benchmark_path) for file in files])
     benchmark_size = len(benchmark_files)
-    print(f'benchmark path: {benchmark_path}')
-    print(f'benchmark size: {benchmark_size}')
+    print(f'benchmark_path: {os.path.realpath(benchmark_path)}')
+    print(f'benchmark_size: {benchmark_size}')
 
     time_out = args.timeout
     if args.date == '':
@@ -117,7 +115,20 @@ def main(argv):
         command = args.cmd.split()
     else:
         command = [args.cmd]
-    check(args.cmd, command, benchmark_files, time_out)
+
+    cmd_log = re.sub(r"[^A-Za-z0-9]", "", args.cmd)
+    log_file = f'{os.path.basename(benchmark_path)}.{check_date}.{cmd_log}.log'
+    print(f'log file: {log_file}')
+    if os.path.exists(log_file):
+        print(f'Error, log file already exists. Remove or rename it.')
+        exit(1)
+    with open(log_file, 'w') as fp:
+        fp.write(f'benchmark_path: {os.path.realpath(benchmark_path)}\n')
+        fp.write(f'benchmark_size: {benchmark_size}\n')
+        fp.write(f'date: {check_date}\n')
+        fp.write(f'tool: {args.cmd}\n')
+
+    check(args.cmd, command, benchmark_files, time_out, log_file)
 
 
 if __name__ == '__main__':
