@@ -25,7 +25,10 @@ DEFAULT_CMDS = {'cvc4': ['cvc4', '--lang', 'smt', '--strings-exp'],
                 'z3str3': ['z3', 'smt.string_solver=z3str3'],
                 'trau': ['./trau', '-language', 'smt2.6'],
                 'trauc': ['./trauc', 'smt.string_solver=z3str3'],
-                'trau2': ['./trau2', 'smt.string_solver=z3str3']}
+                'trau2': ['./trau2', 'smt.string_solver=z3str3'],
+                'trauc17d0ef5': ['./trauc17d0ef5', 'smt.string_solver=z3str3']}
+
+# expected error messages
 ERROR_MSGS = {'VIOLATION', 'segfault', 'dumped', 'exception'}
 
 
@@ -106,8 +109,9 @@ def main(argv):
                                                 "'z3seq : 'z3', \n"
                                                 "'z3str3 : 'z3 smt.string_solver=z3str3', \n"
                                                 "'trau' : './trau' (symbolic link), \n"
-                                                "'trauc' : './trauc smt.string_solver=z3str3' (symbolic link),\n"
-                                                "'trau2' : './trau2 smt.string_solver=z3str3' (symbolic link).",
+                                                "'trauc' : './trauc smt.string_solver=z3str3',\n"
+                                                "'trau2' : './trau2 smt.string_solver=z3str3',\n"
+                                                "'trauc17d0ef5' : './trauc17d0ef5 smt.string_solver=z3str3'",
                             dest="cmd", default='')
     arg_parser.add_argument("-t", "--timeout", help="Set timeout, default is 10 (seconds).",
                             dest="timeout", default=10, type=int)
