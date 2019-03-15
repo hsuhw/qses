@@ -26,7 +26,9 @@ DEFAULT_CMDS = {'cvc4': ['cvc4', '--lang', 'smt', '--strings-exp'],
                 'trau': ['./trau', '-language', 'smt2.6'],
                 'trauc': ['./trauc', 'smt.string_solver=z3str3'],
                 'trau2': ['./trau2', 'smt.string_solver=z3str3'],
-                'trauc17d0ef5': ['./trauc17d0ef5', 'smt.string_solver=z3str3']}
+                'trauc17d0ef5': ['./trauc17d0ef5', 'smt.string_solver=z3str3'],
+                'trau2pre': ['./trau2pre', 'smt.string_solver=z3str3'],
+                'trauctest': ['./trauctest', 'smt.string_solver=z3str3']}
 
 # expected error messages
 ERROR_MSGS = {'VIOLATION', 'segfault', 'dumped', 'exception'}
